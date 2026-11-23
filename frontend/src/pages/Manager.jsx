@@ -1,0 +1,1356 @@
+import { useEffect, useState } from 'react';
+import { api } from '../api.js';
+import { ErrorBox, FilePick, Loading, SecureImg, Stat, fmtDate, inr, monthName, thisMonth, useLoad } from '../components.jsx';
+
+// ---- Meter reading ----
+export function Meter() {
+  const [month, setMonth] = useState(thisMonth());
+  const { data, error, reload } = useLoad(() => api(`/manager/rooms?month=${month}`), [month]);
+  const [vals, setVals] = useState({});
+  const [photos, setPhotos] = useState({});
+  const [msg, setMsg] = useState({ text: '' });
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { setVals({}); setPhotos({}); }, [month]);
+
+  if (error) return <ErrorBox text={error} />;
+  if (!data) return <Loading />;
+
+  const cur = (r) => (vals[r.id] ?? r.current ?? '');
+  const bill = (r) => {
+    const c = cur(r);
+    return c === '' || Number(c) < r.previous ? null : Math.round((Number(c) - r.previous) * data.rate);
+  };
+  const run = async (fn, ok) => {
+    setBusy(true); setMsg({ text: '' });
+    try { const r = await fn(); setMsg({ text: ok(r) }); setVals({}); reload(); }
+    catch (e) { setMsg({ text: e.message, bad: true }); } finally { setBusy(false); }
+  };
+  const save = () => api('/manager/readings', { method: 'POST', body: { month, items: data.rooms.filter((r) => !r.sent && cur(r) !== '').map((r) => ({ roomId: r.id, current: cur(r), photo: photos[r.id] })) } });
+  const saveAndSend = async () => { await save(); return api('/manager/readings/send', { method: 'POST', body: { month } }); };
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-0.5">
+        <h1 className="font-headline text-2xl font-bold text-ink">Meter reading</h1>
+        <p className="font-body text-sm text-ink-2">
+          {monthName(month)} · ₹{data.rate} / unit
+        </p>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="month"
+          value={month}
+          onChange={(e) => e.target.value && setMonth(e.target.value)}
+          className="px-4 py-2 rounded-xl bg-surface border border-line text-ink font-semibold text-sm shadow-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+        />
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {data.rooms.map((r) => (
+          <article key={r.id} className="bg-surface border border-line rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3">
+            <div>
+              <b className="text-base font-bold text-ink">Room {r.number}</b>
+              <small className="block text-xs text-ink-2 mt-0.5">
+                Pichhli {r.previous} · {r.people} log
+              </small>
+            </div>
+            <div className="flex flex-col items-end gap-1.5 shrink-0">
+              {r.sent ? (
+                <span className="px-3 py-1 rounded-full bg-success-soft text-on-success-soft text-xs font-bold">
+                  Bhej diya · {inr(r.total)}
+                </span>
+              ) : (
+                <div className="flex flex-col items-end gap-1">
+                  <input
+                    inputMode="numeric"
+                    placeholder="Abhi reading"
+                    value={cur(r)}
+                    onChange={(e) => setVals({ ...vals, [r.id]: e.target.value.replace(/\D/g, '') })}
+                    className="w-28 px-3 py-1.5 rounded-lg bg-surface border border-line text-ink text-sm text-right tabular-nums focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                  <small className="text-xs text-ink-2 font-semibold">
+                    {bill(r) == null ? (cur(r) !== '' ? 'Pichhli se kam' : '') : inr(bill(r))}
+                  </small>
+                  <FilePick label="Photo" value={photos[r.id]} onChange={(f) => setPhotos({ ...photos, [r.id]: f })} capture="environment" />
+                </div>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
+
+      {msg.text && (
+        <p className={`rounded-xl px-4 py-2.5 text-xs font-semibold ${msg.bad ? 'bg-danger-soft text-on-danger-soft' : 'bg-success-soft text-on-success-soft'}`}>
+          {msg.text}
+        </p>
+      )}
+
+      <div className="flex flex-col gap-2.5 pt-1">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => run(save, (r) => `${r.saved} room ki reading save ho gayi ✓`)}
+          className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-surface text-ink border border-line font-label text-sm font-semibold hover:bg-surface-2 transition-colors disabled:opacity-50"
+        >
+          Reading save karo
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => window.confirm('Bill sabhi tenants ko bhej dein? Bhejne ke baad reading badal nahi sakti.') && run(saveAndSend, (r) => `${r.sent} room ka bill bhej diya ✓${r.skippedEmptyRooms.length ? ` (khaali: ${r.skippedEmptyRooms.join(', ')})` : ''}`)}
+          className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50"
+        >
+          Sabko bill bhejo
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---- Complaints ----
+const CAT = { ac: '❄️ AC', wifi: '📶 WiFi', water: '💧 Paani', cleaning: '🧹 Safai', other: '🔧 Aur' };
+const ST = { new: ['Naya', 'bg-danger-soft text-on-danger-soft'], in_progress: ['Chalu', 'bg-warning-soft text-on-warning-soft'], done: ['Done ✓', 'bg-success-soft text-on-success-soft'] };
+
+export function Complaints() {
+  const { data, error, reload } = useLoad(() => api('/manager/complaints'));
+  const [err, setErr] = useState('');
+  if (error) return <ErrorBox text={error} />;
+  if (!data) return <Loading />;
+
+  const set = async (id, status) => {
+    setErr('');
+    try { await api(`/manager/complaints/${id}`, { method: 'PATCH', body: { status } }); reload(); }
+    catch (e) { setErr(e.message); }
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-0.5">
+        <h1 className="font-headline text-2xl font-bold text-ink">Complaints</h1>
+        <p className="font-body text-sm text-ink-2">{data.items.length} total complaints</p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-surface border border-line rounded-xl p-4 shadow-sm flex flex-col items-center justify-center gap-1 text-center">
+          <span className="font-headline text-2xl font-bold text-danger tabular-nums">{data.counts.new}</span>
+          <span className="font-body text-xs text-ink-2">Naye</span>
+        </div>
+        <div className="bg-surface border border-line rounded-xl p-4 shadow-sm flex flex-col items-center justify-center gap-1 text-center">
+          <span className="font-headline text-2xl font-bold text-warning tabular-nums">{data.counts.in_progress}</span>
+          <span className="font-body text-xs text-ink-2">Chalu</span>
+        </div>
+        <div className="bg-surface border border-line rounded-xl p-4 shadow-sm flex flex-col items-center justify-center gap-1 text-center">
+          <span className="font-headline text-2xl font-bold text-success tabular-nums">{data.counts.done}</span>
+          <span className="font-body text-xs text-ink-2">Done</span>
+        </div>
+      </div>
+
+      {err && <ErrorBox text={err} />}
+      {data.items.length === 0 && (
+        <p className="bg-surface border border-line rounded-xl p-6 text-center text-sm text-ink-2">
+          Koi complaint nahi hai. Sab theek hai! ✓
+        </p>
+      )}
+
+      <div className="flex flex-col gap-3">
+        {data.items.map((c) => (
+          <article key={c._id} className="bg-surface border border-line rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <b>{CAT[c.category] || c.category} · Room {c.room?.number}</b>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${ST[c.status][1]}`}>
+                {ST[c.status][0]}
+              </span>
+            </div>
+            <small className="text-xs text-ink-2">
+              {c.tenant?.name} · {fmtDate(c.createdAt)}
+            </small>
+            {c.text && <p className="text-sm text-ink bg-surface-2 p-3 rounded-xl">{c.text}</p>}
+            {c.photo && <SecureImg name={c.photo} className="w-full max-h-48 object-cover rounded-xl mt-1" alt="complaint" />}
+
+            <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-surface-2 border border-line mt-1">
+              {Object.entries(ST).map(([k, [label]]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => set(c._id, k)}
+                  className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                    c.status === k ? 'bg-surface text-primary shadow-sm font-bold' : 'text-ink-2 hover:text-ink'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---- Tenants ----
+const blank = { name: '', phone: '', bedId: '', rent: '', foodCharge: '', deposit: '', docs: { idProof: '', photo: '', agreement: '', policeVerification: 'pending' } };
+
+export function Tenants() {
+  const { data, error, reload } = useLoad(() => api('/manager/tenants'));
+  const beds = useLoad(() => api('/manager/beds/vacant'));
+  const [adding, setAdding] = useState(false);
+  const [f, setF] = useState(blank);
+  const [msg, setMsg] = useState({ text: '' });
+  const [busy, setBusy] = useState(false);
+
+  // Modals state - must be at the top of the hook hierarchy
+  const [payModalTenant, setPayModalTenant] = useState(null);
+  const [noticeModalTenant, setNoticeModalTenant] = useState(null);
+  const [checkoutModalTenant, setCheckoutModalTenant] = useState(null);
+  const [receiptSlip, setReceiptSlip] = useState(null);
+  const [settlementSlip, setSettlementSlip] = useState(null);
+
+  if (error) return <ErrorBox text={error} />;
+  if (!data) return <Loading />;
+
+  const setDoc = (k, v) => setF({ ...f, docs: { ...f.docs, [k]: v } });
+  const pickBed = (id) => {
+    const b = beds.data?.find((x) => x._id === id);
+    if (!b) return setF({ ...f, bedId: '' });
+    setF({
+      ...f,
+      bedId: id,
+      rent: b.rent || f.rent,
+      deposit: b.deposit || (b.rent * 2) || f.deposit,
+      foodCharge: f.foodCharge || 1000,
+    });
+  };
+
+  const submit = async (e) => {
+    e?.preventDefault();
+    setBusy(true); setMsg({ text: '' });
+    try {
+      await api('/manager/tenants', { method: 'POST', body: f });
+      setF(blank); setAdding(false); setMsg({ text: 'Tenant save ho gaya. Bed ab occupied hai ✓' }); reload(); beds.reload();
+    } catch (e) { setMsg({ text: e.message, bad: true }); } finally { setBusy(false); }
+  };
+
+  const act = async (path, body, confirmText) => {
+    if (confirmText && !window.confirm(confirmText)) return;
+    try { await api(path, { method: body ? 'PATCH' : 'POST' }); reload(); beds.reload(); } catch (e) { setMsg({ text: e.message, bad: true }); }
+  };
+
+  if (adding) {
+    const selectedBed = beds.data?.find((b) => b._id === f.bedId);
+    return (
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-0.5">
+          <h1 className="font-headline text-2xl font-bold text-ink">Naya tenant</h1>
+          <p className="font-body text-sm text-ink-2">Room, bed, kiraya aur documents</p>
+        </div>
+
+        <form onSubmit={submit} className="bg-surface border border-line rounded-2xl p-5 shadow-sm flex flex-col gap-4">
+          <label className="flex flex-col gap-1.5">
+            <span className="font-label text-xs font-semibold text-ink-2">Bed (Room & Sharing Type)</span>
+            <select
+              value={f.bedId}
+              onChange={(e) => pickBed(e.target.value)}
+              required
+              className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+            >
+              <option value="">Khaali bed chuno</option>
+              {beds.data?.map((b) => (
+                <option key={b._id} value={b._id}>
+                  Room {b.room?.number || b.room} (Bed {b.label?.split('-')[1] || b.label}) · {b.room?.sharingType ? `${b.room.sharingType}-Sharing` : ''} · {b.room?.block || ''} · ₹{b.rent}/mo
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {selectedBed && (
+            <div className="rounded-xl p-3 bg-primary-soft text-primary text-xs font-semibold">
+              <b>🏢 {selectedBed.room?.block || 'Main Wing'} · Floor {selectedBed.room?.floor ?? 0}</b><br />
+              Room {selectedBed.room?.number} ({selectedBed.room?.sharingType}-Sharing) · Bed {selectedBed.label}
+              <div className="mt-1 text-ink-2">
+                Default Rent: {inr(selectedBed.rent)} · Default Deposit: {inr(selectedBed.deposit)}
+              </div>
+            </div>
+          )}
+
+          <label className="flex flex-col gap-1.5">
+            <span className="font-label text-xs font-semibold text-ink-2">Naam</span>
+            <input
+              type="text"
+              placeholder="Tenant ka poora naam"
+              value={f.name}
+              onChange={(e) => setF({ ...f, name: e.target.value })}
+              required
+              className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="font-label text-xs font-semibold text-ink-2">Phone</span>
+            <input
+              type="tel"
+              inputMode="numeric"
+              placeholder="10-digit mobile number"
+              value={f.phone}
+              onChange={(e) => setF({ ...f, phone: e.target.value })}
+              required
+              className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm tabular-nums focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+            />
+          </label>
+
+          <div className="grid grid-cols-3 gap-2.5">
+            <label className="flex flex-col gap-1">
+              <span className="font-label text-xs font-semibold text-ink-2">Kiraya</span>
+              <input
+                type="number"
+                value={f.rent}
+                onChange={(e) => setF({ ...f, rent: e.target.value })}
+                required
+                className="w-full px-3 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm tabular-nums focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="font-label text-xs font-semibold text-ink-2">Khaana</span>
+              <input
+                type="number"
+                value={f.foodCharge}
+                onChange={(e) => setF({ ...f, foodCharge: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm tabular-nums focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="font-label text-xs font-semibold text-ink-2">Deposit</span>
+              <input
+                type="number"
+                value={f.deposit}
+                onChange={(e) => setF({ ...f, deposit: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm tabular-nums focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+              />
+            </label>
+          </div>
+
+          {/* Documents Section */}
+          <div className="flex flex-col gap-2 pt-1">
+            <h2 className="font-title text-sm font-bold text-ink">Documents</h2>
+            <div className="grid grid-cols-2 gap-2.5">
+              <FilePick label="ID proof (zaroori)" value={f.docs.idProof} onChange={(v) => setDoc('idProof', v)} accept="image/*,application/pdf" />
+              <FilePick label="Photo" value={f.docs.photo} onChange={(v) => setDoc('photo', v)} />
+              <FilePick label="Agreement" value={f.docs.agreement} onChange={(v) => setDoc('agreement', v)} accept="image/*,application/pdf" />
+              <label className={`border border-dashed rounded-xl p-3 text-xs font-semibold text-center cursor-pointer transition-colors ${f.docs.policeVerification === 'done' ? 'bg-success-soft text-on-success-soft border-success' : 'bg-surface text-ink-2 border-line'}`}>
+                <input type="checkbox" hidden checked={f.docs.policeVerification === 'done'} onChange={(e) => setDoc('policeVerification', e.target.checked ? 'done' : 'pending')} />
+                <span>{f.docs.policeVerification === 'done' ? '✓ Police verification ho gayi' : '+ Police verification?'}</span>
+              </label>
+            </div>
+          </div>
+
+          {msg.text && (
+            <p className={`rounded-xl px-4 py-2.5 text-xs font-semibold ${msg.bad ? 'bg-danger-soft text-on-danger-soft' : 'bg-success-soft text-on-success-soft'}`}>
+              {msg.text}
+            </p>
+          )}
+
+          <div className="flex flex-col gap-2.5 pt-2">
+            <button
+              type="submit"
+              disabled={busy || !f.bedId || !f.name || !f.phone || !f.rent || !f.docs.idProof}
+              className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50"
+            >
+              {busy ? 'Save ho raha hai...' : 'Tenant save karo'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAdding(false); setMsg({ text: '' }); }}
+              className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-surface text-ink border border-line font-label text-sm font-semibold hover:bg-surface-2 transition-colors"
+            >
+              Wapas
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  const cancelNotice = async (t) => {
+    if (!window.confirm(`${t.name} ka notice cancel karna hai aur bed occupied rakhna hai?`)) return;
+    try {
+      await api(`/manager/tenants/${t._id}/cancel-notice`, { method: 'POST' });
+      setMsg({ text: 'Notice cancel ho gaya ✓' });
+      reload();
+      beds.reload();
+    } catch (e) {
+      setMsg({ text: e.message, bad: true });
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-0.5">
+        <h1 className="font-headline text-2xl font-bold text-ink">Tenants</h1>
+        <p className="font-body text-sm text-ink-2 tabular-nums">{data.length} active tenants</p>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setAdding(true)}
+        className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity"
+      >
+        <span className="material-symbols-outlined text-[20px]">add</span>
+        <span>Naya tenant</span>
+      </button>
+
+      {msg.text && (
+        <p className={`rounded-xl px-4 py-2.5 text-xs font-semibold ${msg.bad ? 'bg-danger-soft text-on-danger-soft' : 'bg-success-soft text-on-success-soft'}`}>
+          {msg.text}
+        </p>
+      )}
+
+      {/* Tenants List */}
+      <div className="flex flex-col gap-3">
+        {data.map((t) => {
+          const initials = (t.name || 'TN')
+            .split(' ')
+            .map((s) => s[0])
+            .join('')
+            .slice(0, 2)
+            .toUpperCase();
+          const isOnNotice = t.status === 'notice';
+          return (
+            <article key={t._id} className="bg-surface border border-line rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+              <header className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary-soft text-primary flex items-center justify-center font-bold text-sm shrink-0">
+                    {initials}
+                  </div>
+                  <div className="flex flex-col">
+                    <h2 className="font-title text-base font-bold text-ink">{t.name}</h2>
+                    <p className="font-body text-xs text-ink-2 tabular-nums">
+                      Room {t.room?.number} {t.room?.sharingType ? `(${t.room.sharingType}-Sharing)` : ''} · Bed {t.bed?.label} · {t.phone}
+                    </p>
+                  </div>
+                </div>
+                {isOnNotice && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-warning-soft text-on-warning-soft text-xs font-bold shrink-0">
+                    Notice
+                  </span>
+                )}
+              </header>
+
+              {isOnNotice && (
+                <div className="bg-warning-soft text-on-warning-soft px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-between">
+                  <span>⚠️ Vacating Date: <b>{fmtDate(t.notice?.vacatingDate || t.noticeDate)}</b></span>
+                  <span className="opacity-80 capitalize">Reason: {t.notice?.reason || 'Notice'}</span>
+                </div>
+              )}
+
+              <p className="font-body text-xs text-ink-2 tabular-nums">
+                Kiraya {inr(t.rent)} · Deposit {inr(t.deposit)} · Police verification: {t.docs?.policeVerification === 'done' ? 'ho gayi ✓' : 'baaki'}
+              </p>
+
+              <footer className="flex items-center gap-2 pt-1 border-t border-line flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setPayModalTenant(t)}
+                  className="px-3 py-1.5 rounded-full bg-success-soft text-on-success-soft font-label text-xs font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-[16px]">payments</span>
+                  <span>Kiraya Jama</span>
+                </button>
+
+                {!isOnNotice ? (
+                  <button
+                    type="button"
+                    onClick={() => setNoticeModalTenant(t)}
+                    className="px-3 py-1.5 rounded-full bg-primary-soft text-primary font-label text-xs font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">schedule</span>
+                    <span>Notice dein</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => cancelNotice(t)}
+                    className="px-3 py-1.5 rounded-full bg-surface-2 text-ink-2 border border-line font-label text-xs font-semibold hover:text-ink transition-colors inline-flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">cancel</span>
+                    <span>Cancel Notice</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setCheckoutModalTenant(t)}
+                  className="px-3 py-1.5 rounded-full bg-danger-soft text-on-danger-soft font-label text-xs font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-[16px]">logout</span>
+                  <span>Checkout Settlement</span>
+                </button>
+              </footer>
+            </article>
+          );
+        })}
+      </div>
+
+      {/* Offline Payment Collection Modal */}
+      {payModalTenant && (
+        <OfflinePaymentModal
+          tenant={payModalTenant}
+          onClose={() => setPayModalTenant(null)}
+          onSuccess={(res) => {
+            setPayModalTenant(null);
+            setReceiptSlip(res);
+            reload();
+          }}
+        />
+      )}
+
+      {/* Notice Management Modal */}
+      {noticeModalTenant && (
+        <NoticeModal
+          tenant={noticeModalTenant}
+          onClose={() => setNoticeModalTenant(null)}
+          onSuccess={() => {
+            setNoticeModalTenant(null);
+            setMsg({ text: 'Notice record ho gaya. Bed par notice mark kar diya ✓' });
+            reload();
+            beds.reload();
+          }}
+        />
+      )}
+
+      {/* Checkout Settlement Modal */}
+      {checkoutModalTenant && (
+        <CheckoutSettlementModal
+          tenant={checkoutModalTenant}
+          onClose={() => setCheckoutModalTenant(null)}
+          onSuccess={(res) => {
+            setCheckoutModalTenant(null);
+            setSettlementSlip(res);
+            reload();
+            beds.reload();
+          }}
+        />
+      )}
+
+      {/* Printable Receipt Voucher */}
+      {receiptSlip && (
+        <ReceiptVoucherModal
+          data={receiptSlip}
+          onClose={() => setReceiptSlip(null)}
+        />
+      )}
+
+      {/* Printable Settlement Voucher */}
+      {settlementSlip && (
+        <SettlementVoucherModal
+          data={settlementSlip}
+          onClose={() => setSettlementSlip(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---- Subcomponent Modals ----
+
+export function OfflinePaymentModal({ tenant, onClose, onSuccess }) {
+  const [dues, setDues] = useState([]);
+  const [selectedPayId, setSelectedPayId] = useState('');
+  const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState('cash');
+  const [reference, setReference] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api('/manager/payments/due')
+      .then((list) => {
+        const tenantDues = list.filter((p) => String(p.tenantId) === String(tenant._id));
+        setDues(tenantDues);
+        if (tenantDues.length > 0) {
+          setSelectedPayId(tenantDues[0].id);
+          setAmount(String(tenantDues[0].balanceRemaining));
+        } else {
+          setErr('Is tenant ka koi due payment pending nahi hai.');
+        }
+      })
+      .catch((e) => setErr(e.message))
+      .finally(() => setLoading(false));
+  }, [tenant._id]);
+
+  const activeDue = dues.find((d) => d.id === selectedPayId);
+
+  const handleSelectPayment = (id) => {
+    setSelectedPayId(id);
+    const item = dues.find((d) => d.id === id);
+    if (item) setAmount(String(item.balanceRemaining));
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!selectedPayId) return setErr('Payment select karein');
+    const amt = Number(amount);
+    if (!amt || amt <= 0) return setErr('Sahi amount daalein');
+    if (activeDue && amt > activeDue.balanceRemaining) {
+      return setErr(`Amount baaki balance (${inr(activeDue.balanceRemaining)}) se zyada nahi ho sakti`);
+    }
+
+    setBusy(true);
+    setErr('');
+    try {
+      const res = await api('/manager/payments/record-offline', {
+        method: 'POST',
+        body: {
+          paymentId: selectedPayId,
+          amount: amt,
+          method,
+          reference,
+          note,
+        },
+      });
+      onSuccess({
+        tenant,
+        transaction: res.transaction,
+        payment: res.payment,
+        balanceRemaining: res.balanceRemaining,
+        paidTotal: res.paidTotal,
+      });
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-md bg-surface rounded-2xl p-6 shadow-xl flex flex-col gap-4 border border-line max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-line pb-3">
+          <div>
+            <h2 className="font-title text-base font-bold text-ink">Kiraya Jama Karo (Offline)</h2>
+            <small className="text-xs text-ink-2">Tenant: <b>{tenant.name}</b> (Room {tenant.room?.number || tenant.room})</small>
+          </div>
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink">
+            ✕
+          </button>
+        </div>
+
+        {loading ? (
+          <p className="text-center py-6 text-sm text-ink-2">Dues load ho rahe hain...</p>
+        ) : (
+          <form onSubmit={submit} className="flex flex-col gap-4">
+            {err && <p className="rounded-xl px-4 py-2.5 text-xs font-semibold bg-danger-soft text-on-danger-soft">{err}</p>}
+
+            {dues.length > 0 && (
+              <label className="flex flex-col gap-1.5">
+                <span className="font-label text-xs font-semibold text-ink-2">Pending Bill Chuno</span>
+                <select
+                  value={selectedPayId}
+                  onChange={(e) => handleSelectPayment(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
+                >
+                  {dues.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {monthName(d.month)} ({d.kind}) · Baaki: {inr(d.balanceRemaining)} / Total: {inr(d.total)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {activeDue && (
+              <div className="bg-surface-2 border border-line rounded-xl p-3.5 flex justify-between items-center text-xs">
+                <div>
+                  <span className="text-ink-2 block">Total Bill: <b>{inr(activeDue.total)}</b></span>
+                  <span className="text-success font-semibold block">Pehle Jama: {inr(activeDue.paidAmount)}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-ink-2 block">Kul Baaki (Balance):</span>
+                  <span className="text-base font-bold text-primary tabular-nums">{inr(activeDue.balanceRemaining)}</span>
+                </div>
+              </div>
+            )}
+
+            <label className="flex flex-col gap-1.5">
+              <span className="font-label text-xs font-semibold text-ink-2">Kitna Paisa Jama Karwana Hai (Partial / Full)</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                required
+                placeholder="Amount ₹"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm font-bold tabular-nums focus:border-primary focus:outline-none"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="font-label text-xs font-semibold text-ink-2">Payment Method</span>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  ['cash', '💵 Cash'],
+                  ['upi_owner', '📱 UPI Malik Ko'],
+                  ['cheque', '🏦 Cheque'],
+                  ['neft', '💻 NEFT / IMPS'],
+                ].map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setMethod(k)}
+                    className={`py-2 px-3 rounded-xl text-xs font-semibold border text-left transition-all ${
+                      method === k
+                        ? 'bg-primary text-on-primary border-primary shadow-sm'
+                        : 'bg-surface text-ink border-line hover:bg-surface-2'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </label>
+
+            {method !== 'cash' && (
+              <label className="flex flex-col gap-1.5">
+                <span className="font-label text-xs font-semibold text-ink-2">UTR / Reference / Cheque No.</span>
+                <input
+                  type="text"
+                  placeholder="e.g. UPI Ref / Bank UTR / Cheque #"
+                  value={reference}
+                  onChange={(e) => setReference(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
+                />
+              </label>
+            )}
+
+            <label className="flex flex-col gap-1.5">
+              <span className="font-label text-xs font-semibold text-ink-2">Note (Optional)</span>
+              <input
+                type="text"
+                placeholder="e.g. Papa ne cash diya / Part payment"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="w-full px-3.5 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={busy || !selectedPayId || !amount}
+              className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50 mt-2"
+            >
+              {busy ? 'Save ho raha hai...' : `Payment Jama Karo (${inr(amount)})`}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function NoticeModal({ tenant, onClose, onSuccess }) {
+  const defaultDate = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const [vacatingDate, setVacatingDate] = useState(defaultDate);
+  const [reason, setReason] = useState('personal');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!vacatingDate) return setErr('Vacating date chuno');
+    setBusy(true);
+    setErr('');
+    try {
+      await api(`/manager/tenants/${tenant._id}/notice`, {
+        method: 'POST',
+        body: { vacatingDate, reason, note },
+      });
+      onSuccess();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-md bg-surface rounded-2xl p-6 shadow-xl flex flex-col gap-4 border border-line" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-line pb-3">
+          <div>
+            <h2 className="font-title text-base font-bold text-ink">Room Chhodne Ka Notice</h2>
+            <small className="text-xs text-ink-2">Tenant: <b>{tenant.name}</b> (Bed {tenant.bed?.label || tenant.bed})</small>
+          </div>
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink">
+            ✕
+          </button>
+        </div>
+
+        {err && <p className="rounded-xl px-4 py-2.5 text-xs font-semibold bg-danger-soft text-on-danger-soft">{err}</p>}
+
+        <form onSubmit={submit} className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1.5">
+            <span className="font-label text-xs font-semibold text-ink-2">Kab Room Chhodenge (Vacating Date)</span>
+            <input
+              type="date"
+              required
+              value={vacatingDate}
+              onChange={(e) => setVacatingDate(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
+            />
+            <small className="text-[11px] text-ink-2">Standard notice period 30 din ka hota hai.</small>
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="font-label text-xs font-semibold text-ink-2">Reason (Kyun chhod rahe hain)</span>
+            <select
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
+            >
+              <option value="personal">Ghar wapas / Personal</option>
+              <option value="job">Nayi job / Office relocation</option>
+              <option value="exam">Exams khatam / College pura</option>
+              <option value="budget">Budget / Doosra room</option>
+              <option value="other">Koi aur reason</option>
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="font-label text-xs font-semibold text-ink-2">Remarks / Notes</span>
+            <input
+              type="text"
+              placeholder="e.g. 15 tarikh ko train hai, bed inspect kar liya"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
+            />
+          </label>
+
+          <button
+            type="submit"
+            disabled={busy || !vacatingDate}
+            className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50 mt-1"
+          >
+            {busy ? 'Save ho raha hai...' : 'Notice Confirm Karo'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export function CheckoutSettlementModal({ tenant, onClose, onSuccess }) {
+  const [preview, setPreview] = useState(null);
+  const [deductions, setDeductions] = useState([]);
+  const [refundMethod, setRefundMethod] = useState('upi');
+  const [refundRef, setRefundRef] = useState('');
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api(`/manager/tenants/${tenant._id}/settlement-preview`)
+      .then((data) => setPreview(data))
+      .catch((e) => setErr(e.message))
+      .finally(() => setLoading(false));
+  }, [tenant._id]);
+
+  const addDeduction = (category = 'other', title = '', amount = 500) => {
+    setDeductions([...deductions, { id: String(Date.now() + Math.random()), category, title, amount }]);
+  };
+
+  const removeDeduction = (id) => {
+    setDeductions(deductions.filter((d) => d.id !== id));
+  };
+
+  const updateDeduction = (id, key, val) => {
+    setDeductions(deductions.map((d) => (d.id === id ? { ...d, [key]: val } : d)));
+  };
+
+  const totalDeductions = deductions.reduce((s, d) => s + Number(d.amount || 0), 0);
+  const depositHeld = preview?.depositHeld || 0;
+  const pendingDues = preview?.pendingDues || 0;
+  const netRefundable = depositHeld - pendingDues - totalDeductions;
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!window.confirm(`${tenant.name} ka checkout settlement confirm karein? Bed khaali ho jayega.`)) return;
+
+    setBusy(true);
+    setErr('');
+    try {
+      const res = await api(`/manager/tenants/${tenant._id}/checkout-settle`, {
+        method: 'POST',
+        body: {
+          deductions: deductions.map((d) => ({
+            category: d.category,
+            title: d.title || 'Deduction',
+            amount: Number(d.amount || 0),
+          })),
+          refundMethod,
+          refundRef,
+          notes,
+        },
+      });
+      onSuccess(res.settlement);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-lg bg-surface rounded-2xl p-6 shadow-xl flex flex-col gap-4 border border-line max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-line pb-3">
+          <div>
+            <h2 className="font-title text-base font-bold text-ink">Checkout & Final Settlement</h2>
+            <small className="text-xs text-ink-2">Tenant: <b>{tenant.name}</b> · Room {tenant.room?.number || tenant.room}</small>
+          </div>
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink">
+            ✕
+          </button>
+        </div>
+
+        {loading ? (
+          <p className="text-center py-6 text-sm text-ink-2">Settlement hisaab calculate ho raha hai...</p>
+        ) : (
+          <form onSubmit={submit} className="flex flex-col gap-4">
+            {err && <p className="rounded-xl px-4 py-2.5 text-xs font-semibold bg-danger-soft text-on-danger-soft">{err}</p>}
+
+            {/* Deposit & Dues Summary */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-surface-2 border border-line rounded-xl p-3 text-center">
+                <span className="text-xs text-ink-2 block">Security Deposit Held</span>
+                <b className="text-lg font-bold text-success tabular-nums">{inr(depositHeld)}</b>
+              </div>
+              <div className="bg-surface-2 border border-line rounded-xl p-3 text-center">
+                <span className="text-xs text-ink-2 block">Pending Rent / Bills</span>
+                <b className="text-lg font-bold text-danger tabular-nums">{inr(pendingDues)}</b>
+              </div>
+            </div>
+
+            {/* Pending Dues details if any */}
+            {preview?.unpaidPayments?.length > 0 && (
+              <div className="bg-danger-soft/20 border border-danger-soft rounded-xl p-3 text-xs flex flex-col gap-1">
+                <b className="text-ink">Baaki bills (jo deposit se adjust honge):</b>
+                {preview.unpaidPayments.map((p) => (
+                  <div key={p.id} className="flex justify-between text-ink-2">
+                    <span>{monthName(p.month)} ({p.kind})</span>
+                    <b className="text-danger font-semibold">{inr(p.due)}</b>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Deductions Section */}
+            <div className="flex flex-col gap-2 border-t border-line pt-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-title text-sm font-bold text-ink">Deductions (Katai)</h3>
+                  <p className="text-xs text-ink-2">Painting, Safai, Damage, Key loss</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => addDeduction('cleaning', 'Deep Cleaning & Sanitization', 500)}
+                  className="px-3 py-1 rounded-full bg-surface border border-line text-xs font-semibold text-primary hover:bg-surface-2 inline-flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-[14px]">add</span>
+                  <span>+ Deduction</span>
+                </button>
+              </div>
+
+              {/* Preset buttons */}
+              <div className="flex gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => addDeduction('painting', 'Room Painting & Touchup', 1000)}
+                  className="px-2.5 py-1 rounded-lg bg-surface-2 border border-line text-[11px] font-semibold text-ink-2 hover:text-ink"
+                >
+                  + Painting (₹1,000)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addDeduction('damage', 'Wall / Switch Repair', 300)}
+                  className="px-2.5 py-1 rounded-lg bg-surface-2 border border-line text-[11px] font-semibold text-ink-2 hover:text-ink"
+                >
+                  + Repair (₹300)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addDeduction('notice_shortfall', 'Short notice fee', 1500)}
+                  className="px-2.5 py-1 rounded-lg bg-surface-2 border border-line text-[11px] font-semibold text-ink-2 hover:text-ink"
+                >
+                  + Short Notice
+                </button>
+              </div>
+
+              {/* Deductions item rows */}
+              <div className="flex flex-col gap-2 mt-1">
+                {deductions.map((d) => (
+                  <div key={d.id} className="flex items-center gap-2 bg-surface-2 border border-line p-2.5 rounded-xl">
+                    <select
+                      value={d.category}
+                      onChange={(e) => updateDeduction(d.id, 'category', e.target.value)}
+                      className="text-xs bg-surface border border-line rounded-lg px-2 py-1.5 focus:outline-none"
+                    >
+                      <option value="painting">Painting 🎨</option>
+                      <option value="cleaning">Safai 🧹</option>
+                      <option value="damage">Damage 🛠️</option>
+                      <option value="notice_shortfall">Short Notice ⏱️</option>
+                      <option value="other">Other 🔧</option>
+                    </select>
+
+                    <input
+                      type="text"
+                      placeholder="Title / Description"
+                      value={d.title}
+                      onChange={(e) => updateDeduction(d.id, 'title', e.target.value)}
+                      className="flex-1 text-xs px-2 py-1.5 bg-surface border border-line rounded-lg focus:outline-none"
+                    />
+
+                    <div className="w-24 flex items-center gap-1">
+                      <span className="text-xs text-ink-2 font-bold">₹</span>
+                      <input
+                        type="number"
+                        placeholder="Amt"
+                        value={d.amount}
+                        onChange={(e) => updateDeduction(d.id, 'amount', e.target.value)}
+                        className="w-full text-xs px-2 py-1.5 bg-surface border border-line rounded-lg text-right font-bold tabular-nums focus:outline-none"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => removeDeduction(d.id)}
+                      className="text-ink-2 hover:text-danger p-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Net Calculation Hero */}
+            <div className={`rounded-xl p-4 flex flex-col gap-2 border ${
+              netRefundable >= 0 ? 'bg-success-soft/30 border-success' : 'bg-danger-soft/30 border-danger'
+            }`}>
+              <div className="flex justify-between text-xs text-ink">
+                <span>Deposit Held:</span>
+                <span className="font-semibold tabular-nums">+{inr(depositHeld)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-ink">
+                <span>Pending Rent/Bills:</span>
+                <span className="font-semibold tabular-nums">-{inr(pendingDues)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-ink">
+                <span>Total Deductions:</span>
+                <span className="font-semibold tabular-nums">-{inr(totalDeductions)}</span>
+              </div>
+              <div className="border-t border-line pt-2 flex justify-between items-center">
+                <b className="text-sm font-bold text-ink">
+                  {netRefundable >= 0 ? 'Tenant Ko Wapas (Net Refund):' : 'Tenant Se Aur Lena Hai:'}
+                </b>
+                <b className={`text-xl font-bold tabular-nums ${netRefundable >= 0 ? 'text-success' : 'text-danger'}`}>
+                  {inr(Math.abs(netRefundable))}
+                </b>
+              </div>
+            </div>
+
+            {/* Refund Mode */}
+            <div className="flex flex-col gap-2">
+              <span className="font-label text-xs font-semibold text-ink-2">Refund Method</span>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  ['upi', '📱 UPI'],
+                  ['cash', '💵 Cash'],
+                  ['neft', '💻 Bank Transfer'],
+                ].map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setRefundMethod(k)}
+                    className={`py-2 px-2 rounded-xl text-xs font-semibold border text-center transition-all ${
+                      refundMethod === k
+                        ? 'bg-primary text-on-primary border-primary shadow-sm'
+                        : 'bg-surface text-ink border-line hover:bg-surface-2'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="font-label text-xs font-semibold text-ink-2">UTR / Transaction Ref (Optional)</span>
+              <input
+                type="text"
+                placeholder="UPI Ref ID / Cash voucher"
+                value={refundRef}
+                onChange={(e) => setRefundRef(e.target.value)}
+                className="w-full px-3.5 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="font-label text-xs font-semibold text-ink-2">Settlement Notes</span>
+              <input
+                type="text"
+                placeholder="e.g. Deposit settled, keys collected, room vacated"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full px-3.5 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={busy}
+              className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50 mt-2"
+            >
+              {busy ? 'Settle ho raha hai...' : 'Settle & Checkout Confirm Karo'}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ReceiptVoucherModal({ data, onClose }) {
+  const { tenant, transaction, payment, balanceRemaining } = data;
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-md bg-surface rounded-2xl p-6 shadow-xl flex flex-col gap-4 border border-line print:m-0 print:border-none print:shadow-none" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-line pb-3">
+          <div>
+            <h2 className="font-title text-base font-bold text-ink">Payment Receipt</h2>
+            <small className="text-xs text-ink-2">Receipt No: <b>{transaction.receiptNo}</b></small>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full bg-success-soft text-on-success-soft text-xs font-bold">
+            {balanceRemaining === 0 ? 'PAID FULL ✓' : 'PARTIAL PAID'}
+          </span>
+        </div>
+
+        <div className="text-xs text-ink-2 flex flex-col gap-1">
+          <p>Tenant: <b className="text-ink">{tenant.name}</b> · Room: <b className="text-ink">{tenant.room?.number || tenant.room}</b></p>
+          <p>Tareekh: <b className="text-ink">{fmtDate(transaction.paidAt)} {fmtTime(transaction.paidAt)}</b></p>
+          <p>Method: <b className="text-ink capitalize">{transaction.method}</b> {transaction.reference ? `(${transaction.reference})` : ''}</p>
+        </div>
+
+        <div className="bg-surface-2 rounded-xl p-4 flex flex-col gap-2 border border-line">
+          <div className="flex justify-between items-center text-sm">
+            <span>Jama Kiya (Amount Paid):</span>
+            <b className="text-lg font-bold text-primary tabular-nums">{inr(transaction.amount)}</b>
+          </div>
+          <div className="flex justify-between items-center text-xs text-ink-2 border-t border-line pt-2">
+            <span>Bill Total:</span>
+            <span className="tabular-nums font-semibold">{inr(payment.total)}</span>
+          </div>
+          <div className="flex justify-between items-center text-xs">
+            <span>Baaki Balance (Remaining):</span>
+            <b className={`tabular-nums ${balanceRemaining > 0 ? 'text-warning font-bold' : 'text-success font-semibold'}`}>
+              {inr(balanceRemaining)}
+            </b>
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-2 print:hidden">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full bg-primary text-on-primary font-bold text-xs shadow-sm hover:opacity-95"
+          >
+            <span className="material-symbols-outlined text-[16px]">print</span>
+            <span>Print / PDF</span>
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 inline-flex items-center justify-center px-4 py-2.5 rounded-full bg-surface text-ink border border-line text-xs font-semibold hover:bg-surface-2"
+          >
+            Band karo
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function SettlementVoucherModal({ data, onClose }) {
+  const s = data;
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-md bg-surface rounded-2xl p-6 shadow-xl flex flex-col gap-4 border border-line print:m-0 print:border-none print:shadow-none" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-line pb-3">
+          <div>
+            <h2 className="font-title text-base font-bold text-ink">Checkout Settlement Voucher</h2>
+            <small className="text-xs text-ink-2">Slip No: <b>{s.settlementNo}</b></small>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full bg-success-soft text-on-success-soft text-xs font-bold">
+            SETTLED ✓
+          </span>
+        </div>
+
+        <div className="text-xs text-ink-2 flex flex-col gap-1">
+          <p>Tareekh: <b className="text-ink">{fmtDate(s.checkoutDate)}</b></p>
+          <p>Payment Mode: <b className="text-ink capitalize">{s.refundMethod}</b> {s.refundRef ? `(${s.refundRef})` : ''}</p>
+        </div>
+
+        <table className="w-full text-xs border-t border-line">
+          <tbody>
+            <tr className="border-b border-line/60">
+              <td className="py-2 text-ink-2">Security Deposit Held</td>
+              <td className="text-right font-bold text-success tabular-nums">+{inr(s.depositHeld)}</td>
+            </tr>
+            <tr className="border-b border-line/60">
+              <td className="py-2 text-ink-2">Pending Dues Adjusted</td>
+              <td className="text-right font-bold text-danger tabular-nums">-{inr(s.pendingDues)}</td>
+            </tr>
+
+            {s.deductions?.map((d, i) => (
+              <tr key={i} className="border-b border-line/40">
+                <td className="py-1.5 text-ink-2 pl-2">↳ {d.title} ({d.category})</td>
+                <td className="text-right font-semibold text-danger tabular-nums">-{inr(d.amount)}</td>
+              </tr>
+            ))}
+
+            <tr className="border-b border-line/60">
+              <td className="py-2 font-semibold text-ink">Total Deductions</td>
+              <td className="text-right font-bold text-danger tabular-nums">-{inr(s.totalDeductions)}</td>
+            </tr>
+            <tr className="font-bold text-sm">
+              <td className="pt-3 text-ink">
+                {s.netRefundable >= 0 ? 'Net Refund Amount:' : 'Extra Collected:'}
+              </td>
+              <td className={`text-right pt-3 tabular-nums ${s.netRefundable >= 0 ? 'text-success text-base' : 'text-danger text-base'}`}>
+                {inr(Math.abs(s.netRefundable))}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {s.notes && (
+          <p className="text-xs text-ink-2 bg-surface-2 p-2.5 rounded-xl border border-line">
+            <b>Note:</b> {s.notes}
+          </p>
+        )}
+
+        <div className="flex gap-2 pt-2 print:hidden">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full bg-primary text-on-primary font-bold text-xs shadow-sm hover:opacity-95"
+          >
+            <span className="material-symbols-outlined text-[16px]">print</span>
+            <span>Print Slip</span>
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 inline-flex items-center justify-center px-4 py-2.5 rounded-full bg-surface text-ink border border-line text-xs font-semibold hover:bg-surface-2"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---- Menu editor ----
+export function MenuEdit() {
+  const week = useLoad(() => api('/manager/menu'));
+  const count = useLoad(() => api('/manager/food-count'));
+  const today = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  const [date, setDate] = useState(today);
+  const [f, setF] = useState({ nashta: '', lunch: '', dinner: '' });
+  const [msg, setMsg] = useState({ text: '' });
+  const days = Array.from({ length: 7 }, (_, i) => new Date(new Date(today).getTime() + i * 86400000).toISOString().slice(0, 10));
+
+  useEffect(() => {
+    const d = week.data?.find((x) => x.date === date);
+    setF({ nashta: d?.nashta || '', lunch: d?.lunch || '', dinner: d?.dinner || '' });
+  }, [date, week.data]);
+
+  const save = async () => {
+    try { await api(`/manager/menu/${date}`, { method: 'PUT', body: f }); setMsg({ text: 'Menu save ho gaya ✓' }); week.reload(); }
+    catch (e) { setMsg({ text: e.message, bad: true }); }
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-0.5">
+        <h1 className="font-headline text-2xl font-bold text-ink">Khaane ka menu</h1>
+        <p className="font-body text-sm text-ink-2">Tenants ko unke app mein yahi dikhega</p>
+      </div>
+
+      {count.data && (
+        <div className="bg-surface border border-line rounded-2xl p-4 shadow-sm flex items-center justify-between text-sm">
+          <span>Aaj khaana kha rahe hain:</span>
+          <b>{count.data.eating} / {count.data.total} log ({count.data.skipped} skipped)</b>
+        </div>
+      )}
+
+      {/* Days Selector */}
+      <div className="grid grid-cols-7 gap-1.5">
+        {days.map((d) => (
+          <button
+            key={d}
+            type="button"
+            onClick={() => setDate(d)}
+            className={`py-2 px-1 rounded-xl flex flex-col items-center gap-0.5 text-xs font-semibold border transition-all ${
+              d === date
+                ? 'bg-primary text-on-primary border-primary shadow-sm'
+                : 'bg-surface text-ink border-line hover:bg-surface-2'
+            }`}
+          >
+            <span className="text-[10px] opacity-80">{new Date(d).toLocaleDateString('en-IN', { weekday: 'short' })}</span>
+            <b className="text-sm">{Number(d.slice(8))}</b>
+          </button>
+        ))}
+      </div>
+
+      {/* Meal Inputs */}
+      <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm flex flex-col gap-3.5">
+        {[
+          ['nashta', 'Nashta (Breakfast)', '🌅'],
+          ['lunch', 'Lunch (Dopehar)', '☀️'],
+          ['dinner', 'Dinner (Raat)', '🌙'],
+        ].map(([k, l, icon]) => (
+          <label key={k} className="flex flex-col gap-1.5">
+            <span className="font-label text-xs font-semibold text-ink-2">{icon} {l}</span>
+            <input
+              value={f[k]}
+              maxLength={200}
+              placeholder="Menu item likhein..."
+              onChange={(e) => setF({ ...f, [k]: e.target.value })}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+            />
+          </label>
+        ))}
+      </div>
+
+      {msg.text && (
+        <p className={`rounded-xl px-4 py-2.5 text-xs font-semibold ${msg.bad ? 'bg-danger-soft text-on-danger-soft' : 'bg-success-soft text-on-success-soft'}`}>
+          {msg.text}
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={save}
+        className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity"
+      >
+        Menu save karo
+      </button>
+    </div>
+  );
+}

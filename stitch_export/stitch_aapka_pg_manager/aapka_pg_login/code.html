@@ -1,0 +1,145 @@
+<!DOCTYPE html><html lang="en"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aapka PG Login — Aapka PG</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">/** @type {import('tailwindcss').Config} */
+globalThis.tailwind = globalThis.tailwind || {};
+globalThis.tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        'primary': '#003B95',
+        'on-primary': '#FFFFFF',
+        'primary-soft': '#EBF3FF',
+        'on-primary-soft': '#003B95',
+        'secondary': '#E07D47',
+        'on-secondary': '#181A1C',
+        'tertiary': '#4EAC6D',
+        'on-tertiary': '#181A1C',
+        'background': '#FFFFFF',
+        'on-background': '#181A1C',
+        'surface': '#FFFFFF',
+        'on-surface': '#181A1C',
+        'surface-2': '#F3F5F7',
+        'on-surface-2': '#181A1C',
+        'ink': '#181A1C',
+        'ink-2': '#66686D',
+        'line': '#E2E4E7',
+        'inverse': '#1C1E20',
+        'on-inverse': '#FFFFFF',
+        'success': '#159A49',
+        'success-soft': '#E8F7EE',
+        'on-success-soft': '#0F7A38',
+        'warning': '#C97D00',
+        'warning-soft': '#FFF4E0',
+        'on-warning-soft': '#8F5700',
+        'danger': '#D32F34',
+        'on-danger': '#FFFFFF',
+        'danger-soft': '#FDECEC',
+        'on-danger-soft': '#B71C21',
+      },
+      borderRadius: {
+        'sm': '8px',
+        'DEFAULT': '12px',
+        'md': '12px',
+        'lg': '16px',
+        'xl': '24px',
+        'full': '9999px',
+      },
+      spacing: {
+        'gutter-xs': '4px',
+        'gutter-sm': '8px',
+        'gutter-md': '16px',
+        'gutter-lg': '24px',
+        'gutter-xl': '32px',
+        'section': '24px',
+        'page-margin': '24px',
+      },
+      fontFamily: {
+        'display': ['"Figtree"', 'sans-serif'],
+        'headline': ['"Figtree"', 'sans-serif'],
+        'title': ['"Figtree"', 'sans-serif'],
+        'body': ['"Figtree"', 'sans-serif'],
+        'label': ['"Figtree"', 'sans-serif'],
+      },
+      fontSize: {
+        'display-lg': ['36px', { lineHeight: '42px', letterSpacing: '-0.5px', fontWeight: '700' }],
+        'display-lg-mobile': ['28px', { lineHeight: '34px', letterSpacing: '-0.25px', fontWeight: '700' }],
+        'headline-lg': ['24px', { lineHeight: '30px', letterSpacing: '-0.25px', fontWeight: '700' }],
+        'headline-md': ['18px', { lineHeight: '24px', letterSpacing: '-0.1px', fontWeight: '700' }],
+        'title-md': ['16px', { lineHeight: '22px', letterSpacing: '0px', fontWeight: '600' }],
+        'body-md': ['14px', { lineHeight: '20px', letterSpacing: '0px', fontWeight: '400' }],
+        'body-sm': ['12px', { lineHeight: '16px', letterSpacing: '0px', fontWeight: '400' }],
+        'label-lg': ['14px', { lineHeight: '20px', letterSpacing: '0px', fontWeight: '600' }],
+        'label-sm': ['12px', { lineHeight: '16px', letterSpacing: '0.1px', fontWeight: '600' }],
+      },
+      transitionDuration: {
+        'state-change': '120ms',
+        'surface-enter': '200ms',
+      },
+      transitionDelay: {
+        'state-change': '0ms',
+        'surface-enter': '0ms',
+      },
+      transitionTimingFunction: {
+        'state-change': 'ease-out',
+        'surface-enter': 'cubic-bezier(0.2, 0, 0, 1)',
+      },
+    },
+  },
+};
+if (typeof module !== 'undefined') module.exports = globalThis.tailwind.config;
+</script>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet">
+  <style>.material-symbols-outlined, .material-symbols-rounded, .material-symbols-sharp, .material-icons { display: inline-block; width: 1em; height: 1em; line-height: 1 !important; box-sizing: content-box; overflow: hidden; white-space: nowrap; direction: ltr; vertical-align: middle; }</style>
+</head>
+<body class="bg-surface-2 text-on-surface font-body antialiased">
+  <main class="min-h-[1024px] flex items-center justify-center p-6" data-stitch-vh="min-h-[1024px]===min-h-screen">
+    <section class="w-full max-w-md bg-surface border border-line rounded-xl p-8 shadow-sm flex flex-col gap-6">
+      <div class="flex flex-col items-center text-center gap-3">
+        <div class="w-14 h-14 rounded-lg bg-primary text-on-primary flex items-center justify-center shadow-sm">
+          <span class="material-symbols-outlined text-[28px]" style="font-variation-settings: &#39;FILL&#39; 1;">bed</span>
+        </div>
+        <div class="flex flex-col gap-1">
+          <h1 class="font-headline text-headline-lg text-ink" data-design-text-token="headline-lg">Aapka PG</h1>
+          <p class="font-body text-body-md text-ink-2" data-design-text-token="body-md">Mobile number se login karo</p>
+        </div>
+      </div>
+
+      <!-- Role Selector -->
+      <div class="grid grid-cols-3 gap-1 p-1 rounded-md bg-surface-2 border border-line" role="tablist" aria-label="Role selector">
+        <button type="button" role="tab" aria-selected="true" class="py-2 px-3 rounded-sm bg-surface text-primary shadow-sm font-label text-label-lg">
+          <span data-design-text-token="label-lg">Tenant</span>
+        </button>
+        <button type="button" role="tab" aria-selected="false" class="py-2 px-3 rounded-sm font-label text-label-lg text-ink-2 hover:text-ink transition-colors duration-state-change">
+          <span data-design-text-token="label-lg">Manager</span>
+        </button>
+        <button type="button" role="tab" aria-selected="false" class="py-2 px-3 rounded-sm font-label text-label-lg text-ink-2 hover:text-ink transition-colors duration-state-change">
+          <span data-design-text-token="label-lg">Malik</span>
+        </button>
+      </div>
+
+      <form class="flex flex-col gap-4" onsubmit="return false;">
+        <label data-component-id="input-field-text" data-component-type="input-field" data-component-variant="text" class="flex flex-col gap-1.5">
+          <span class="font-label text-label-sm text-ink-2" data-design-text-token="label-sm">Mobile number</span>
+          <input type="tel" inputmode="numeric" placeholder="98XXXXXXXX" class="w-full px-3.5 py-2.5 rounded-md bg-surface border border-line text-ink font-body text-body-md placeholder:text-ink-2 tabular-nums focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none">
+        </label>
+
+        <div class="pt-2">
+          <button data-component-id="button-primary" data-component-type="button" data-component-variant="primary" type="submit" class="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-label-lg shadow-sm hover:opacity-95 transition-opacity duration-state-change">
+            <span data-design-text-token="label-lg">OTP bhejo</span>
+          </button>
+        </div>
+      </form>
+
+      <p class="text-center font-body text-body-sm text-ink-2" data-design-text-token="body-sm">
+        Har kisi ko sirf apna kaam dikhega
+      </p>
+    </section>
+  </main>
+
+
+</body></html>

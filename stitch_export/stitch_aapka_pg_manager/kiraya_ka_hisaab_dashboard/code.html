@@ -1,0 +1,278 @@
+<!DOCTYPE html><html lang="en"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kiraya ka hisaab — Aapka PG</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">/** @type {import('tailwindcss').Config} */
+globalThis.tailwind = globalThis.tailwind || {};
+globalThis.tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        'primary': '#003B95',
+        'on-primary': '#FFFFFF',
+        'primary-soft': '#EBF3FF',
+        'on-primary-soft': '#003B95',
+        'secondary': '#E07D47',
+        'on-secondary': '#181A1C',
+        'tertiary': '#4EAC6D',
+        'on-tertiary': '#181A1C',
+        'background': '#FFFFFF',
+        'on-background': '#181A1C',
+        'surface': '#FFFFFF',
+        'on-surface': '#181A1C',
+        'surface-2': '#F3F5F7',
+        'on-surface-2': '#181A1C',
+        'ink': '#181A1C',
+        'ink-2': '#66686D',
+        'line': '#E2E4E7',
+        'inverse': '#1C1E20',
+        'on-inverse': '#FFFFFF',
+        'success': '#159A49',
+        'success-soft': '#E8F7EE',
+        'on-success-soft': '#0F7A38',
+        'warning': '#C97D00',
+        'warning-soft': '#FFF4E0',
+        'on-warning-soft': '#8F5700',
+        'danger': '#D32F34',
+        'on-danger': '#FFFFFF',
+        'danger-soft': '#FDECEC',
+        'on-danger-soft': '#B71C21',
+      },
+      borderRadius: {
+        'sm': '8px',
+        'DEFAULT': '12px',
+        'md': '12px',
+        'lg': '16px',
+        'xl': '24px',
+        'full': '9999px',
+      },
+      spacing: {
+        'gutter-xs': '4px',
+        'gutter-sm': '8px',
+        'gutter-md': '16px',
+        'gutter-lg': '24px',
+        'gutter-xl': '32px',
+        'section': '24px',
+        'page-margin': '24px',
+      },
+      fontFamily: {
+        'display': ['"Figtree"', 'sans-serif'],
+        'headline': ['"Figtree"', 'sans-serif'],
+        'title': ['"Figtree"', 'sans-serif'],
+        'body': ['"Figtree"', 'sans-serif'],
+        'label': ['"Figtree"', 'sans-serif'],
+      },
+      fontSize: {
+        'display-lg': ['36px', { lineHeight: '42px', letterSpacing: '-0.5px', fontWeight: '700' }],
+        'display-lg-mobile': ['28px', { lineHeight: '34px', letterSpacing: '-0.25px', fontWeight: '700' }],
+        'headline-lg': ['24px', { lineHeight: '30px', letterSpacing: '-0.25px', fontWeight: '700' }],
+        'headline-md': ['18px', { lineHeight: '24px', letterSpacing: '-0.1px', fontWeight: '700' }],
+        'title-md': ['16px', { lineHeight: '22px', letterSpacing: '0px', fontWeight: '600' }],
+        'body-md': ['14px', { lineHeight: '20px', letterSpacing: '0px', fontWeight: '400' }],
+        'body-sm': ['12px', { lineHeight: '16px', letterSpacing: '0px', fontWeight: '400' }],
+        'label-lg': ['14px', { lineHeight: '20px', letterSpacing: '0px', fontWeight: '600' }],
+        'label-sm': ['12px', { lineHeight: '16px', letterSpacing: '0.1px', fontWeight: '600' }],
+      },
+      transitionDuration: {
+        'state-change': '120ms',
+        'surface-enter': '200ms',
+      },
+      transitionDelay: {
+        'state-change': '0ms',
+        'surface-enter': '0ms',
+      },
+      transitionTimingFunction: {
+        'state-change': 'ease-out',
+        'surface-enter': 'cubic-bezier(0.2, 0, 0, 1)',
+      },
+    },
+  },
+};
+if (typeof module !== 'undefined') module.exports = globalThis.tailwind.config;
+</script>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet">
+  <style>.material-symbols-outlined, .material-symbols-rounded, .material-symbols-sharp, .material-icons { display: inline-block; width: 1em; height: 1em; line-height: 1 !important; box-sizing: content-box; overflow: hidden; white-space: nowrap; direction: ltr; vertical-align: middle; }</style>
+</head>
+<body class="bg-surface-2 text-on-surface font-body antialiased">
+  <div class="min-h-[1024px] flex flex-col items-center" data-stitch-vh="min-h-[1024px]===min-h-screen">
+    <div class="w-full max-w-xl min-h-[1024px] flex flex-col justify-between bg-surface-2" data-stitch-vh="min-h-[1024px]===min-h-screen">
+      <!-- Top App Bar -->
+      <header class="sticky top-0 z-20 bg-surface-2/95 border-b border-line px-6 py-4 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <img src="https://lh3.googleusercontent.com/aida/ALJJyrAjn-4M2xwsbmsO7DP9OJuHu_X913P748RQC5tKNnMzLSQeWH0BhL7v1rrhisP2jRtcFCpKtX_PUBUMl_2gBFEQQ71aaZvjVYTCnb0-8DhMQ0-7QpIUoIrE5Byt7D-XwtCgKpp2olh5YcZXJiHuRCL_gUGKbvuUKIRal8n8r-7-O1lJ_8XFUY6ZcdaTs6kzxFqwTDd1LqcUb5RlP_KWQ0yTg49W4FR892eD4lDRlH2qe4EosLID" alt="Malik Sahab" class="w-10 h-10 rounded-full object-cover border border-line">
+          <div class="flex flex-col">
+            <span class="font-label text-label-sm text-primary" data-design-text-token="label-sm">Malik</span>
+            <span class="font-title text-title-md text-ink" data-design-text-token="title-md">Malik Sahab</span>
+          </div>
+        </div>
+        <button data-component-id="button-secondary" data-component-type="button" data-component-variant="secondary" type="button" class="inline-flex items-center justify-center px-4 py-2 rounded-full bg-surface text-ink border border-line font-label text-label-sm hover:bg-surface-2 transition-colors duration-state-change">
+          <span data-design-text-token="label-sm">Logout</span>
+        </button>
+      </header>
+
+      <!-- Main Content -->
+      <main class="flex-1 px-6 py-6 flex flex-col gap-5">
+        <div class="flex flex-col gap-0.5">
+          <h1 class="font-headline text-headline-lg text-ink" data-design-text-token="headline-lg">Kiraya ka hisaab</h1>
+          <p class="font-body text-body-md text-ink-2 tabular-nums" data-design-text-token="body-md">November 2026 · 5/19 bed</p>
+        </div>
+
+        <!-- Date Picker -->
+        <div>
+          <button type="button" class="inline-flex items-center gap-3 px-4 py-2.5 rounded-md bg-surface border border-line text-ink font-label text-label-lg shadow-sm hover:bg-surface-2 transition-colors duration-state-change">
+            <span data-design-text-token="label-lg">November, 2026</span>
+            <span class="material-symbols-outlined text-[18px] text-ink-2">calendar_today</span>
+          </button>
+        </div>
+
+        <!-- Financial Summary Hero Card -->
+        <section class="bg-primary text-on-primary rounded-lg p-6 shadow-sm flex flex-col gap-3">
+          <div class="font-display text-display-lg tabular-nums" data-design-text-token="display-lg">₹0</div>
+          <p class="font-body text-body-md text-on-primary/90 tabular-nums" data-design-text-token="body-md">Baaki ₹42,500 · 5 log</p>
+          <div>
+            <span class="inline-flex items-center px-3 py-1 rounded-full bg-surface/15 text-on-primary font-label text-label-sm tabular-nums" data-design-text-token="label-sm">Deposit ₹75,000</span>
+          </div>
+        </section>
+
+        <!-- Section Header -->
+        <div class="flex items-center justify-between gap-3 pt-1">
+          <h2 class="font-headline text-headline-md text-ink" data-design-text-token="headline-md">Late kiraya</h2>
+          <button data-component-id="chip-outline" data-component-type="chip" data-component-variant="action" type="button" class="inline-flex items-center px-3.5 py-1.5 rounded-full bg-surface border border-line text-primary font-label text-label-sm hover:bg-primary-soft transition-colors duration-state-change">
+            <span data-design-text-token="label-sm">Sabko reminder</span>
+          </button>
+        </div>
+
+        <!-- Late Rent List -->
+        <div class="flex flex-col gap-3">
+          <!-- Row 1 -->
+          <article class="bg-surface border border-line rounded-lg p-4 shadow-sm flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-10 h-10 rounded-full bg-primary-soft text-on-primary-soft flex items-center justify-center font-label text-label-lg shrink-0">
+                <span data-design-text-token="label-lg">RS</span>
+              </div>
+              <div class="flex flex-col min-w-0">
+                <h3 class="font-title text-title-md text-ink" data-design-text-token="title-md">Room 101 · Rahul Sharma</h3>
+                <p class="font-body text-body-sm text-ink-2 tabular-nums" data-design-text-token="body-sm">18 din late</p>
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-1.5 shrink-0">
+              <span class="font-title text-title-md text-on-warning-soft tabular-nums" data-design-text-token="title-md">₹8,500</span>
+              <button type="button" class="px-3 py-1 rounded-full bg-surface border border-line text-primary font-label text-label-sm hover:bg-primary-soft transition-colors duration-state-change">
+                <span data-design-text-token="label-sm">Reminder</span>
+              </button>
+            </div>
+          </article>
+
+          <!-- Row 2 -->
+          <article class="bg-surface border border-line rounded-lg p-4 shadow-sm flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-10 h-10 rounded-full bg-primary-soft text-on-primary-soft flex items-center justify-center font-label text-label-lg shrink-0">
+                <span data-design-text-token="label-lg">NP</span>
+              </div>
+              <div class="flex flex-col min-w-0">
+                <h3 class="font-title text-title-md text-ink" data-design-text-token="title-md">Room 101 · Neha Patel</h3>
+                <p class="font-body text-body-sm text-ink-2 tabular-nums" data-design-text-token="body-sm">18 din late</p>
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-1.5 shrink-0">
+              <span class="font-title text-title-md text-on-warning-soft tabular-nums" data-design-text-token="title-md">₹8,500</span>
+              <button type="button" class="px-3 py-1 rounded-full bg-surface border border-line text-primary font-label text-label-sm hover:bg-primary-soft transition-colors duration-state-change">
+                <span data-design-text-token="label-sm">Reminder</span>
+              </button>
+            </div>
+          </article>
+
+          <!-- Row 3 -->
+          <article class="bg-surface border border-line rounded-lg p-4 shadow-sm flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-10 h-10 rounded-full bg-primary-soft text-on-primary-soft flex items-center justify-center font-label text-label-lg shrink-0">
+                <span data-design-text-token="label-lg">AK</span>
+              </div>
+              <div class="flex flex-col min-w-0">
+                <h3 class="font-title text-title-md text-ink" data-design-text-token="title-md">Room 102 · Amit Kumar</h3>
+                <p class="font-body text-body-sm text-ink-2 tabular-nums" data-design-text-token="body-sm">18 din late</p>
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-1.5 shrink-0">
+              <span class="font-title text-title-md text-on-warning-soft tabular-nums" data-design-text-token="title-md">₹8,500</span>
+              <button type="button" class="px-3 py-1 rounded-full bg-surface border border-line text-primary font-label text-label-sm hover:bg-primary-soft transition-colors duration-state-change">
+                <span data-design-text-token="label-sm">Reminder</span>
+              </button>
+            </div>
+          </article>
+
+          <!-- Row 4 -->
+          <article class="bg-surface border border-line rounded-lg p-4 shadow-sm flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-10 h-10 rounded-full bg-primary-soft text-on-primary-soft flex items-center justify-center font-label text-label-lg shrink-0">
+                <span data-design-text-token="label-lg">VT</span>
+              </div>
+              <div class="flex flex-col min-w-0">
+                <h3 class="font-title text-title-md text-ink" data-design-text-token="title-md">Room 102 · Vikram Tomar</h3>
+                <p class="font-body text-body-sm text-ink-2 tabular-nums" data-design-text-token="body-sm">18 din late</p>
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-1.5 shrink-0">
+              <span class="font-title text-title-md text-on-warning-soft tabular-nums" data-design-text-token="title-md">₹8,500</span>
+              <button type="button" class="px-3 py-1 rounded-full bg-surface border border-line text-primary font-label text-label-sm hover:bg-primary-soft transition-colors duration-state-change">
+                <span data-design-text-token="label-sm">Reminder</span>
+              </button>
+            </div>
+          </article>
+
+          <!-- Row 5 -->
+          <article class="bg-surface border border-line rounded-lg p-4 shadow-sm flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-10 h-10 rounded-full bg-primary-soft text-on-primary-soft flex items-center justify-center font-label text-label-lg shrink-0">
+                <span data-design-text-token="label-lg">SK</span>
+              </div>
+              <div class="flex flex-col min-w-0">
+                <h3 class="font-title text-title-md text-ink" data-design-text-token="title-md">Room 103 · Sana Khan</h3>
+                <p class="font-body text-body-sm text-ink-2 tabular-nums" data-design-text-token="body-sm">18 din late</p>
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-1.5 shrink-0">
+              <span class="font-title text-title-md text-on-warning-soft tabular-nums" data-design-text-token="title-md">₹8,500</span>
+              <button type="button" class="px-3 py-1 rounded-full bg-surface border border-line text-primary font-label text-label-sm hover:bg-primary-soft transition-colors duration-state-change">
+                <span data-design-text-token="label-sm">Reminder</span>
+              </button>
+            </div>
+          </article>
+        </div>
+      </main>
+
+      <!-- Bottom Tab Bar -->
+      <nav class="sticky bottom-0 z-20 bg-surface border-t border-line px-4 py-2 grid grid-cols-4 gap-1" aria-label="Primary navigation">
+        <a href="../kiraya-ka-hisaab/KirayaKaHisaab.html" aria-current="page" class="flex flex-col items-center gap-1 py-1 text-primary">
+          <span class="px-4 py-1 rounded-full bg-primary-soft text-on-primary-soft flex items-center justify-center">
+            <span class="material-symbols-outlined text-[22px]" style="font-variation-settings: &#39;FILL&#39; 1;">payments</span>
+          </span>
+          <span class="font-label text-label-sm" data-design-text-token="label-sm">Hisaab</span>
+        </a>
+        <a href="../block-room-bed-hierarchy/BlockRoomBedHierarchy.html" class="flex flex-col items-center gap-1 py-1 text-ink-2 hover:text-ink">
+          <span class="px-4 py-1 rounded-full flex items-center justify-center">
+            <span class="material-symbols-outlined text-[22px]">bed</span>
+          </span>
+          <span class="font-label text-label-sm" data-design-text-token="label-sm">Beds</span>
+        </a>
+        <a href="../tenants-management/TenantsManagement.html" class="flex flex-col items-center gap-1 py-1 text-ink-2 hover:text-ink">
+          <span class="px-4 py-1 rounded-full flex items-center justify-center">
+            <span class="material-symbols-outlined text-[22px]">group</span>
+          </span>
+          <span class="font-label text-label-sm" data-design-text-token="label-sm">Tenants</span>
+        </a>
+        <a href="../settings/Settings.html" class="flex flex-col items-center gap-1 py-1 text-ink-2 hover:text-ink">
+          <span class="px-4 py-1 rounded-full flex items-center justify-center">
+            <span class="material-symbols-outlined text-[22px]">settings</span>
+          </span>
+          <span class="font-label text-label-sm" data-design-text-token="label-sm">Settings</span>
+        </a>
+      </nav>
+    </div>
+  </div>
+
+
+</body></html>
