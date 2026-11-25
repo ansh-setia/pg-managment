@@ -92,18 +92,18 @@ r.get('/blocks', wrap(async (_req, res) => {
 
 r.post('/blocks', wrap(async (req, res) => {
   const name = String(req.body.name || '').trim();
-  if (!name) throw new HttpError(400, 'Block ka naam zaroori hai');
+  if (!name) throw new HttpError(400, 'Block name is required');
   const existing = await Block.findOne({ name: new RegExp(`^${name}$`, 'i') });
-  if (existing) throw new HttpError(409, 'Ye block pehle se bana hai');
+  if (existing) throw new HttpError(409, 'A block with this name already exists');
   const block = await Block.create({ name, description: String(req.body.description || '').trim() });
   res.status(201).json(block);
 }));
 
 r.delete('/blocks/:id', wrap(async (req, res) => {
   const hasRooms = await Room.exists({ block: req.params.id });
-  if (hasRooms) throw new HttpError(400, 'Is block mein rooms hain, pehle unhe delete karo');
+  if (hasRooms) throw new HttpError(400, 'This block still contains rooms. Please delete or move them first.');
   const b = await Block.findByIdAndDelete(req.params.id);
-  if (!b) throw new HttpError(404, 'Block nahi mila');
+  if (!b) throw new HttpError(404, 'Block not found');
   res.json({ ok: true });
 }));
 
@@ -170,21 +170,21 @@ r.get('/hierarchy', wrap(async (_req, res) => {
 r.post('/rooms', wrap(async (req, res) => {
   let { blockId, floor, number, sharingType, rent, initialReading } = req.body;
   number = String(number || '').trim();
-  if (!number) throw new HttpError(400, 'Room number zaroori hai');
+  if (!number) throw new HttpError(400, 'Room number is required');
   floor = Number(floor ?? 0);
   sharingType = Number(sharingType || 2);
-  if (sharingType < 1 || sharingType > 15) throw new HttpError(400, 'Sharing type 1 se 15 ke beech honi chahiye');
+  if (sharingType < 1 || sharingType > 15) throw new HttpError(400, 'Sharing type must be between 1 and 15');
 
   let block;
   if (blockId) {
     block = await Block.findById(blockId);
-    if (!block) throw new HttpError(404, 'Block nahi mila');
+    if (!block) throw new HttpError(404, 'Block not found');
   } else {
     block = (await Block.findOne()) || (await Block.create({ name: 'Main Wing', description: 'Primary Building' }));
   }
 
   const exists = await Room.findOne({ block: block._id, number });
-  if (exists) throw new HttpError(409, `Room ${number} is block mein pehle se hai`);
+  if (exists) throw new HttpError(409, `Room ${number} already exists in this block`);
 
   const settings = await getSettings();
   const defaultTier = settings.sharingDefaults?.find((s) => s.sharingType === sharingType);
@@ -217,10 +217,10 @@ r.post('/rooms', wrap(async (req, res) => {
 r.delete('/rooms/:id', wrap(async (req, res) => {
   const beds = await Bed.find({ room: req.params.id });
   const hasOccupants = beds.some((b) => b.status !== 'vacant');
-  if (hasOccupants) throw new HttpError(400, 'Is room ke beds par active ya notice tenant hain, pehle checkout karo');
+  if (hasOccupants) throw new HttpError(400, 'This room still has occupied or on-notice beds. Please check out tenants first.');
   await Bed.deleteMany({ room: req.params.id });
   const rm = await Room.findByIdAndDelete(req.params.id);
-  if (!rm) throw new HttpError(404, 'Room nahi mila');
+  if (!rm) throw new HttpError(404, 'Room not found');
   res.json({ ok: true });
 }));
 
@@ -254,11 +254,11 @@ r.put('/settings', wrap(async (req, res) => {
   const upd = {};
   if (name != null) upd.name = String(name).slice(0, 60);
   if (ratePerUnit != null) {
-    if (!(Number(ratePerUnit) > 0)) throw new HttpError(400, 'Rate sahi daalo');
+    if (!(Number(ratePerUnit) > 0)) throw new HttpError(400, 'Please enter a valid rate per unit');
     upd.ratePerUnit = Number(ratePerUnit);
   }
   if (dueDay != null) {
-    if (!(dueDay >= 1 && dueDay <= 28)) throw new HttpError(400, 'Due date 1 se 28 ke beech rakho');
+    if (!(dueDay >= 1 && dueDay <= 28)) throw new HttpError(400, 'Due date must be between the 1st and 28th of the month');
     upd.dueDay = Number(dueDay);
   }
   if (contactPhone != null) upd.contactPhone = String(contactPhone).replace(/\D/g, '').slice(-10);

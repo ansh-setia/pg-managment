@@ -63,12 +63,12 @@ r.post('/onboard/:token/submit', wrap(async (req, res) => {
   const { aadhaarNumber, permanentAddress, collegeOrOffice, parent = {}, docs = {} } = req.body;
   const tenant = await Tenant.findOne({ inviteToken: req.params.token }).populate('bed room');
   if (!tenant || tenant.status === 'left') {
-    throw new HttpError(404, 'Onboarding record nahi mila');
+    throw new HttpError(404, 'Onboarding record not found');
   }
 
-  if (!aadhaarNumber?.trim()) throw new HttpError(400, 'Aadhaar card number zaroori hai');
+  if (!aadhaarNumber?.trim()) throw new HttpError(400, 'Aadhaar card number is required');
   if (!parent.fatherName?.trim() || !parent.fatherPhone?.trim()) {
-    throw new HttpError(400, "Mata ya Pita (Parent) ka naam aur phone zaroori hai");
+    throw new HttpError(400, 'Parent full name and mobile number are required');
   }
 
   tenant.aadhaarNumber = aadhaarNumber.trim();
@@ -106,7 +106,7 @@ r.post('/onboard/:token/submit', wrap(async (req, res) => {
 
   res.json({
     ok: true,
-    message: 'Police verification aur family details save ho gayi!',
+    message: 'Verification and parent details saved successfully!',
     paymentId: payment._id,
     totalDue: payment.total || (tenant.rent + tenant.deposit),
     deposit: tenant.deposit,
@@ -120,11 +120,11 @@ r.post('/onboard/:token/pay', wrap(async (req, res) => {
   const { paymentId, amount, method = 'online', reference = '' } = req.body;
   const tenant = await Tenant.findOne({ inviteToken: req.params.token }).populate('user room bed');
   if (!tenant || tenant.status === 'left') {
-    throw new HttpError(404, 'Tenant record nahi mila');
+    throw new HttpError(404, 'Tenant record not found');
   }
 
   const amt = Number(amount);
-  if (!amt || amt <= 0) throw new HttpError(400, 'Sahi amount chuno');
+  if (!amt || amt <= 0) throw new HttpError(400, 'Please select a valid payment amount');
 
   let payRecordId = paymentId;
   if (!payRecordId) {
@@ -177,7 +177,7 @@ r.post('/onboard/:token/pay', wrap(async (req, res) => {
 r.get('/leave-approval/:token', wrap(async (req, res) => {
   const leave = await Leave.findOne({ approvalToken: req.params.token })
     .populate({ path: 'tenant', populate: { path: 'room bed' } });
-  if (!leave) throw new HttpError(404, 'Leave request nahi mili');
+  if (!leave) throw new HttpError(404, 'Leave request not found');
 
   const settings = await getSettings();
   res.json({
@@ -202,11 +202,11 @@ r.get('/leave-approval/:token', wrap(async (req, res) => {
 r.post('/leave-approval/:token/action', wrap(async (req, res) => {
   const { action, remarks = '' } = req.body;
   if (!['approved', 'rejected'].includes(action)) {
-    throw new HttpError(400, 'Valid action chuno (approved / rejected)');
+    throw new HttpError(400, 'Please select a valid action (approved / rejected)');
   }
 
   const leave = await Leave.findOne({ approvalToken: req.params.token }).populate('tenant');
-  if (!leave) throw new HttpError(404, 'Leave request nahi mili');
+  if (!leave) throw new HttpError(404, 'Leave request not found');
 
   leave.parentStatus = action;
   leave.parentActionAt = new Date();
@@ -216,7 +216,7 @@ r.post('/leave-approval/:token/action', wrap(async (req, res) => {
   // Notify student & manager
   await sendWhatsApp(leave.tenant.phone, 'leave_parent_decision', {
     name: leave.tenant.name,
-    status: action === 'approved' ? 'Approved (Manjoor)' : 'Rejected (Aswikaar)',
+    status: action === 'approved' ? 'Approved' : 'Rejected',
     remarks,
   });
 

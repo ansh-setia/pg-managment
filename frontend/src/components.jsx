@@ -19,7 +19,7 @@ export function useLoad(fn, deps = []) {
   return { ...state, reload: () => setN((x) => x + 1) };
 }
 
-export const Loading = () => <p className="muted pad">Load ho raha hai…</p>;
+export const Loading = () => <p className="muted pad">Loading…</p>;
 export const ErrorBox = ({ text }) => <p className="notice bad">{text}</p>;
 export const Page = ({ title, sub, children }) => (
   <section className="page">
@@ -40,7 +40,7 @@ export function SecureImg({ name, alt = '', className }) {
     return () => u && URL.revokeObjectURL(u);
   }, [name]);
   if (!url) return <span className={`imgph ${className || ''}`} />;
-  if (/\.pdf$/i.test(name)) return <a href={url} target="_blank" rel="noreferrer">PDF kholo</a>;
+  if (/\.pdf$/i.test(name)) return <a href={url} target="_blank" rel="noreferrer">Open PDF</a>;
   return <img src={url} alt={alt} className={className} />;
 }
 
@@ -56,7 +56,7 @@ export function FilePick({ label, value, onChange, accept = 'image/*', capture }
   return (
     <label className={`filepick ${value ? 'ok' : ''}`}>
       <input type="file" accept={accept} capture={capture} onChange={pick} hidden />
-      <span>{busy ? 'Upload ho raha hai…' : value ? `✓ ${label}` : `+ ${label}`}</span>
+      <span>{busy ? 'Uploading…' : value ? `✓ ${label}` : `+ ${label}`}</span>
       {err && <small className="bad-text">{err}</small>}
     </label>
   );

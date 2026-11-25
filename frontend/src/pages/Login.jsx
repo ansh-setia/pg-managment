@@ -38,8 +38,8 @@ export default function Login({ onLogin }) {
             <span className="material-symbols-outlined text-[28px]">bed</span>
           </div>
           <div className="flex flex-col gap-1">
-            <h1 className="font-headline text-2xl font-bold text-ink">Aapka PG</h1>
-            <p className="font-body text-sm text-ink-2">Mobile number se login karo</p>
+            <h1 className="font-headline text-2xl font-bold text-ink">PG Management</h1>
+            <p className="font-body text-sm text-ink-2">Sign in with mobile number</p>
           </div>
         </div>
 
@@ -48,7 +48,7 @@ export default function Login({ onLogin }) {
           {[
             { id: 'tenant', label: 'Tenant' },
             { id: 'manager', label: 'Manager' },
-            { id: 'malik', label: 'Malik' },
+            { id: 'malik', label: 'Owner' },
           ].map((r) => (
             <button
               key={r.id}
@@ -74,7 +74,7 @@ export default function Login({ onLogin }) {
 
         <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); step === 'phone' ? sendOtp() : verify(); }}>
           <label className="flex flex-col gap-1.5">
-            <span className="font-label text-xs font-semibold text-ink-2">Mobile number</span>
+            <span className="font-label text-xs font-semibold text-ink-2">Mobile Number</span>
             <input
               type="tel"
               inputMode="numeric"
@@ -90,7 +90,7 @@ export default function Login({ onLogin }) {
           {step === 'otp' && (
             <div className="flex flex-col gap-1.5">
               <label className="flex flex-col gap-1.5">
-                <span className="font-label text-xs font-semibold text-ink-2">OTP</span>
+                <span className="font-label text-xs font-semibold text-ink-2">One-Time Password (OTP)</span>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -104,7 +104,7 @@ export default function Login({ onLogin }) {
               </label>
               {hint && (
                 <div className="flex items-center justify-between text-xs text-primary bg-primary-soft px-3 py-1.5 rounded-lg mt-1 font-semibold">
-                  <span>Dev Mode OTP: <b>{hint}</b></span>
+                  <span>Demo Mode OTP: <b>{hint}</b></span>
                   <button type="button" onClick={() => setOtp(hint)} className="underline">Auto-fill</button>
                 </div>
               )}
@@ -124,7 +124,7 @@ export default function Login({ onLogin }) {
                 disabled={busy || phone.replace(/\D/g, '').length < 10}
                 className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50"
               >
-                {busy ? 'Bhej rahe hain...' : 'OTP bhejo'}
+                {busy ? 'Sending OTP...' : 'Send OTP'}
               </button>
             ) : (
               <>
@@ -133,14 +133,14 @@ export default function Login({ onLogin }) {
                   disabled={busy || otp.length !== otpLength}
                   className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50"
                 >
-                  {busy ? 'Verify ho raha hai...' : 'Login'}
+                  {busy ? 'Verifying...' : 'Sign In'}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setStep('phone'); setOtp(''); setErr(''); }}
                   className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-surface text-ink border border-line font-label text-sm font-semibold hover:bg-surface-2 transition-colors"
                 >
-                  Number badlo
+                  Change Mobile Number
                 </button>
               </>
             )}
@@ -148,7 +148,7 @@ export default function Login({ onLogin }) {
         </form>
 
         <p className="text-center font-body text-xs text-ink-2">
-          Demo: Malik <code>9000000001</code> · Manager <code>9000000002</code> · Tenant <code>9000000011</code>
+          Demo Accounts: Owner <code>9000000001</code> · Manager <code>9000000002</code> · Tenant <code>9000000011</code>
         </p>
       </section>
     </main>

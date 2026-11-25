@@ -20,7 +20,7 @@ export function Hisaab() {
     setBusy(true);
     try {
       const r = await api('/owner/remind', { method: 'POST', body: { month, paymentId } });
-      setMsg({ text: `${r.sent} reminder bhej diye ✓` });
+      setMsg({ text: `${r.sent} payment reminder(s) sent ✓` });
       reload();
     } catch (e) {
       setMsg({ text: e.message, bad: true });
@@ -32,9 +32,9 @@ export function Hisaab() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-0.5">
-        <h1 className="font-headline text-2xl font-bold text-ink">Kiraya ka hisaab</h1>
+        <h1 className="font-headline text-2xl font-bold text-ink">Financial Overview</h1>
         <p className="font-body text-sm text-ink-2 tabular-nums">
-          {monthName(month)} · {data.beds.occupied} / {data.beds.total} bed occupied
+          {monthName(month)} · {data.beds.occupied} / {data.beds.total} beds occupied
         </p>
       </div>
 
@@ -50,12 +50,12 @@ export function Hisaab() {
 
       {/* Financial Summary Hero Card */}
       <section className="bg-primary text-on-primary rounded-2xl p-6 shadow-sm flex flex-col gap-3">
-        <span className="text-xs font-semibold uppercase tracking-wider opacity-90">Is mahine mila</span>
+        <span className="text-xs font-semibold uppercase tracking-wider opacity-90">Collected This Month</span>
         <div className="font-display text-4xl font-bold tabular-nums">
           {inr(data.collected)}
         </div>
         <p className="font-body text-sm text-on-primary/90 tabular-nums">
-          Baaki {inr(data.pending)} · {data.pendingPeople} log baaki
+          Pending {inr(data.pending)} · {data.pendingPeople} tenants pending
         </p>
         <div className="pt-1">
           <button
@@ -63,7 +63,7 @@ export function Hisaab() {
             onClick={() => setShowDeposits(!showDeposits)}
             className="inline-flex items-center px-3.5 py-1.5 rounded-full bg-surface/20 text-on-primary font-label text-xs font-semibold hover:bg-surface/30 transition-colors"
           >
-            Deposit {inr(data.deposits)} {showDeposits ? '▴' : '▾'}
+            Deposits Held {inr(data.deposits)} {showDeposits ? '▴' : '▾'}
           </button>
         </div>
       </section>
@@ -71,12 +71,12 @@ export function Hisaab() {
       {/* Deposit Dropdown */}
       {showDeposits && deposits.data && (
         <div className="bg-surface border border-line rounded-2xl p-4 shadow-sm flex flex-col gap-2">
-          <h3 className="font-title text-sm font-bold text-ink mb-1">Tenants Security Deposit List</h3>
+          <h3 className="font-title text-sm font-bold text-ink mb-1">Tenant Security Deposits</h3>
           {deposits.data.map((d) => (
             <div key={d.id} className="flex justify-between items-center py-2 border-t border-line first:border-0 text-sm">
               <div>
                 <b>{d.name}</b>
-                <span className="block text-xs text-ink-2">Room {d.room} · {fmtDate(d.since)} se</span>
+                <span className="block text-xs text-ink-2">Room {d.room} · Since {fmtDate(d.since)}</span>
               </div>
               <b className="font-semibold tabular-nums">{inr(d.deposit)}</b>
             </div>
@@ -86,7 +86,7 @@ export function Hisaab() {
 
       {/* Late Rent Section */}
       <div className="flex items-center justify-between gap-3 pt-1">
-        <h2 className="font-headline text-lg font-bold text-ink">Late kiraya</h2>
+        <h2 className="font-headline text-lg font-bold text-ink">Overdue Rent</h2>
         {data.overdue.length > 0 && (
           <button
             type="button"
@@ -94,7 +94,7 @@ export function Hisaab() {
             onClick={() => remind()}
             className="inline-flex items-center px-3.5 py-1.5 rounded-full bg-surface border border-line text-primary font-label text-xs font-bold hover:bg-primary-soft transition-colors"
           >
-            Sabko reminder
+            Remind All
           </button>
         )}
       </div>
@@ -107,7 +107,7 @@ export function Hisaab() {
 
       {data.overdue.length === 0 && (
         <p className="rounded-xl p-4 text-sm font-semibold bg-success-soft text-on-success-soft text-center">
-          Koi late nahi hai! Sabhi dues clear hain ✓
+          No overdue rent! All monthly dues are clear ✓
         </p>
       )}
 
@@ -134,7 +134,7 @@ export function Hisaab() {
                     Room {o.room} · {o.tenant}
                   </h3>
                   <p className="font-body text-xs text-ink-2 tabular-nums">
-                    {o.daysLate} din late {o.reminderSentAt ? '· Reminder gaya ✓' : ''}
+                    {o.daysLate} days late {o.reminderSentAt ? '· Reminder Sent ✓' : ''}
                   </p>
                 </div>
               </div>
@@ -148,7 +148,7 @@ export function Hisaab() {
                     onClick={() => setCollectPay(o)}
                     className="px-3 py-1 rounded-full bg-success-soft text-on-success-soft font-label text-xs font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-1"
                   >
-                    <span>Jama Lo</span>
+                    <span>Collect</span>
                   </button>
                   <button
                     type="button"
@@ -156,7 +156,7 @@ export function Hisaab() {
                     onClick={() => remind(o.paymentId)}
                     className="px-3 py-1 rounded-full bg-surface border border-line text-primary font-label text-xs font-semibold hover:bg-primary-soft transition-colors"
                   >
-                    Reminder
+                    Remind
                   </button>
                 </div>
               </div>
@@ -172,7 +172,7 @@ export function Hisaab() {
           onSuccess={(res) => {
             setCollectPay(null);
             setReceiptSlip(res);
-            setMsg({ text: 'Kiraya jama ho gaya ✓' });
+            setMsg({ text: 'Payment recorded successfully ✓' });
             reload();
           }}
         />
@@ -215,7 +215,7 @@ export function Beds() {
 
   const link = `${window.location.origin}/vacancy`;
   const share = async () => {
-    const text = `${bedsData.data?.counts.vacant || 0} bed khaali hain. Dekho: ${link}`;
+    const text = `${bedsData.data?.counts.vacant || 0} vacant beds available. View here: ${link}`;
     if (navigator.share) {
       try { await navigator.share({ text, url: link }); } catch { /* cancelled */ }
     } else {
@@ -245,7 +245,7 @@ export function Beds() {
     try {
       let bId = newRoom.blockId;
       if (newRoom.blockId === 'NEW') {
-        if (!newRoom.newBlockName.trim()) throw new Error('Naye block ka naam daalo');
+        if (!newRoom.newBlockName.trim()) throw new Error('Please enter new block name');
         const blk = await api('/owner/blocks', { method: 'POST', body: { name: newRoom.newBlockName.trim() } });
         bId = blk.id || blk._id;
       }
@@ -260,7 +260,7 @@ export function Beds() {
           initialReading: Number(newRoom.initialReading || 0),
         },
       });
-      setMsg({ text: `Room ${newRoom.number} aur uske ${newRoom.sharingType} beds ban gaye ✓` });
+      setMsg({ text: `Room ${newRoom.number} and its ${newRoom.sharingType} beds created successfully ✓` });
       setNewRoom({ blockId: '', newBlockName: '', floor: 1, number: '', sharingType: 2, rent: '', initialReading: 0 });
       setTab('hierarchy');
       reloadAll();
@@ -272,10 +272,10 @@ export function Beds() {
   };
 
   const handleDeleteRoom = async (roomId, roomNo) => {
-    if (!window.confirm(`Room ${roomNo} aur uske khaali beds delete karein?`)) return;
+    if (!window.confirm(`Delete Room ${roomNo} and its vacant beds?`)) return;
     try {
       await api(`/owner/rooms/${roomId}`, { method: 'DELETE' });
-      setMsg({ text: `Room ${roomNo} delete ho gaya ✓` });
+      setMsg({ text: `Room ${roomNo} deleted successfully ✓` });
       reloadAll();
     } catch (err) {
       setMsg({ text: err.message, bad: true });
@@ -289,23 +289,23 @@ export function Beds() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-0.5">
-        <h1 className="font-headline text-2xl font-bold text-ink">Block, Room & Bed Setup</h1>
-        <p className="font-body text-sm text-ink-2">Hierarchy · Sharing type · Khaali bed status</p>
+        <h1 className="font-headline text-2xl font-bold text-ink">Rooms & Beds Setup</h1>
+        <p className="font-body text-sm text-ink-2">Hierarchy · Sharing types · Bed availability</p>
       </div>
 
       {/* Stat Tiles */}
       <div className="grid grid-cols-3 gap-3 items-stretch">
         <div className="bg-surface border border-line rounded-xl p-4 shadow-sm flex flex-col items-center justify-center gap-1 h-full text-center">
           <span className="font-headline text-2xl font-bold text-ink tabular-nums">{counts.occupied}</span>
-          <span className="font-body text-xs text-ink-2">Bhare Bed</span>
+          <span className="font-body text-xs text-ink-2">Occupied</span>
         </div>
         <div className="bg-surface border border-line rounded-xl p-4 shadow-sm flex flex-col items-center justify-center gap-1 h-full text-center">
           <span className="font-headline text-2xl font-bold text-success tabular-nums">{counts.vacant}</span>
-          <span className="font-body text-xs text-ink-2">Khaali Bed</span>
+          <span className="font-body text-xs text-ink-2">Vacant</span>
         </div>
         <div className="bg-surface border border-line rounded-xl p-4 shadow-sm flex flex-col items-center justify-center gap-1 h-full text-center">
           <span className="font-headline text-2xl font-bold text-warning tabular-nums">{counts.notice}</span>
-          <span className="font-body text-xs text-ink-2">Notice</span>
+          <span className="font-body text-xs text-ink-2">On Notice</span>
         </div>
       </div>
 
@@ -339,7 +339,7 @@ export function Beds() {
           }`}
         >
           <span className="material-symbols-outlined text-[16px]">add</span>
-          <span>Naya Room</span>
+          <span>New Room</span>
         </button>
       </div>
 
@@ -361,7 +361,7 @@ export function Beds() {
                 : 'bg-surface border border-line text-ink-2 hover:text-ink'
             }`}
           >
-            Sabhi Blocks
+            All Blocks
           </button>
           {blocks.map((blk) => (
             <button
@@ -385,7 +385,7 @@ export function Beds() {
         <div className="flex flex-col gap-4">
           {filteredRooms.length === 0 && (
             <p className="bg-surface border border-line rounded-xl p-4 text-center text-sm text-ink-2">
-              Koi room nahi mila.
+              No rooms found.
             </p>
           )}
 
@@ -402,7 +402,7 @@ export function Beds() {
                   <div className="bg-surface-2 px-5 py-3.5 border-b border-line flex items-center justify-between">
                     <div>
                       <strong className="font-title text-sm font-bold text-ink">🏢 {blk.name}</strong>
-                      <span className="block text-xs text-ink-2">{blk.description || 'Block Wing'}</span>
+                      <span className="block text-xs text-ink-2">{blk.description || 'Building Wing'}</span>
                     </div>
                     <span className="px-2.5 py-1 rounded-full bg-primary-soft text-primary text-xs font-bold">
                       {blkRooms.reduce((s, r) => s + r.totalBeds, 0)} Beds
@@ -430,7 +430,7 @@ export function Beds() {
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <span className={`text-xs font-semibold tabular-nums ${rm.vacantBeds > 0 ? 'text-success' : 'text-ink-2'}`}>
-                                    {rm.vacantBeds} / {rm.totalBeds} khaali
+                                    {rm.vacantBeds} / {rm.totalBeds} vacant
                                   </span>
                                   {rm.vacantBeds === rm.totalBeds && (
                                     <button
@@ -506,16 +506,16 @@ export function Beds() {
             <div className="bg-surface border border-line rounded-xl p-4 shadow-sm text-sm">
               <b className="text-primary font-bold">{info.label}</b> ({info.block} · Floor {info.floor} · {info.sharingType}-Sharing):{' '}
               {info.status === 'vacant'
-                ? `Khaali · ${info.daysVacant} din se · ${inr(info.rent)}/mo`
+                ? `Vacant · ${info.daysVacant} days · ${inr(info.rent)}/mo`
                 : info.status === 'notice'
-                ? `Notice pe · ${info.tenant}`
-                : `Bhara · ${info.tenant}`}
+                ? `On Notice · ${info.tenant}`
+                : `Occupied · ${info.tenant}`}
             </div>
           )}
 
           {counts.vacant > 0 && (
             <p className="rounded-xl p-3 text-xs font-semibold bg-success-soft text-on-success-soft text-center">
-              🛏️ {counts.vacant} bed khaali · {inr(vacantRent)} / mahina potential rent
+              🛏️ {counts.vacant} vacant beds · {inr(vacantRent)} / month potential rent
             </p>
           )}
 
@@ -525,7 +525,7 @@ export function Beds() {
               onClick={share}
               className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity"
             >
-              Khaali bed ka link share karo
+              Share Vacant Beds Link
             </button>
             <a
               href="/vacancy"
@@ -533,16 +533,16 @@ export function Beds() {
               rel="noreferrer"
               className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-surface text-ink border border-line font-label text-sm font-semibold hover:bg-surface-2 transition-colors"
             >
-              Public vacancy page dekho
+              Open Public Vacancy Page
             </a>
           </div>
         </div>
       )}
 
-      {/* Naya Room Form */}
+      {/* New Room Form */}
       {tab === 'new' && (
         <form onSubmit={handleCreateRoom} className="bg-surface border border-line rounded-2xl p-5 shadow-sm flex flex-col gap-4">
-          <h2 className="font-headline text-lg font-bold text-ink">Naya Room aur Beds Banao</h2>
+          <h2 className="font-headline text-lg font-bold text-ink">Create New Room & Beds</h2>
 
           <label className="flex flex-col gap-1.5">
             <span className="font-label text-xs font-semibold text-ink-2">Block (Building / Wing)</span>
@@ -551,19 +551,19 @@ export function Beds() {
               onChange={(e) => setNewRoom({ ...newRoom, blockId: e.target.value })}
               className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
             >
-              <option value="">Block chuno (Default: Main)</option>
+              <option value="">Select Block (Default: Main)</option>
               {blocks.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
-              <option value="NEW">➕ Naya Block banayein...</option>
+              <option value="NEW">➕ Add New Block...</option>
             </select>
           </label>
 
           {newRoom.blockId === 'NEW' && (
             <label className="flex flex-col gap-1.5">
-              <span className="font-label text-xs font-semibold text-ink-2">Naye Block ka Naam</span>
+              <span className="font-label text-xs font-semibold text-ink-2">New Block Name</span>
               <input
-                placeholder="e.g. Tower C ya Boys Wing"
+                placeholder="e.g. Tower C or Boys Wing"
                 value={newRoom.newBlockName}
                 onChange={(e) => setNewRoom({ ...newRoom, newBlockName: e.target.value })}
                 required
@@ -592,13 +592,13 @@ export function Beds() {
                 value={newRoom.number}
                 onChange={(e) => setNewRoom({ ...newRoom, number: e.target.value })}
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
               />
             </label>
           </div>
 
           <label className="flex flex-col gap-1.5">
-            <span className="font-label text-xs font-semibold text-ink-2">Sharing Type (1 se 15 beds)</span>
+            <span className="font-label text-xs font-semibold text-ink-2">Sharing Type (1 to 15 beds)</span>
             <select
               value={newRoom.sharingType}
               onChange={(e) => handleSharingChange(e.target.value)}
@@ -617,7 +617,7 @@ export function Beds() {
 
           <div className="grid grid-cols-2 gap-3">
             <label className="flex flex-col gap-1.5">
-              <span className="font-label text-xs font-semibold text-ink-2">Kiraya per Bed (₹/mo)</span>
+              <span className="font-label text-xs font-semibold text-ink-2">Rent per Bed (₹/mo)</span>
               <input
                 type="number"
                 value={newRoom.rent}
@@ -639,7 +639,7 @@ export function Beds() {
           </div>
 
           <p className="font-body text-xs text-ink-2 mt-1">
-            Room bante hi system automatically <b>{newRoom.sharingType} beds</b> ({newRoom.number || 'XXX'}-A, {newRoom.number || 'XXX'}-B...) generate kar dega.
+            Upon creation, the system will automatically generate <b>{newRoom.sharingType} beds</b> ({newRoom.number || 'XXX'}-A, {newRoom.number || 'XXX'}-B...).
           </p>
 
           <button
@@ -647,7 +647,7 @@ export function Beds() {
             disabled={busy}
             className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50"
           >
-            {busy ? 'Ban raha hai...' : `Room ${newRoom.number || ''} aur ${newRoom.sharingType} Beds Banao`}
+            {busy ? 'Creating...' : `Create Room ${newRoom.number || ''} & ${newRoom.sharingType} Beds`}
           </button>
         </form>
       )}
@@ -718,7 +718,7 @@ export function Settings() {
           sharingDefaults: f.sharingDefaults,
         },
       });
-      setMsg({ text: 'Settings aur Sharing Defaults save ho gaye ✓' });
+      setMsg({ text: 'Settings and sharing defaults saved successfully ✓' });
       reload();
     } catch (e) {
       setMsg({ text: e.message, bad: true });
@@ -735,11 +735,11 @@ export function Settings() {
 
       {/* General Settings Card */}
       <article className="bg-surface border border-line rounded-2xl p-5 shadow-sm flex flex-col gap-4">
-        <h2 className="font-title text-base font-bold text-ink">PG Ki General Settings</h2>
+        <h2 className="font-title text-base font-bold text-ink">General PG Settings</h2>
 
         <div className="flex flex-col gap-3.5">
           <label className="flex flex-col gap-1.5">
-            <span className="font-label text-xs font-semibold text-ink-2">PG ka naam</span>
+            <span className="font-label text-xs font-semibold text-ink-2">PG Name</span>
             <input
               type="text"
               value={f.name}
@@ -749,7 +749,7 @@ export function Settings() {
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="font-label text-xs font-semibold text-ink-2">Bijli rate (₹/unit)</span>
+            <span className="font-label text-xs font-semibold text-ink-2">Electricity Rate (₹/unit)</span>
             <input
               type="number"
               value={f.ratePerUnit}
@@ -759,7 +759,7 @@ export function Settings() {
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="font-label text-xs font-semibold text-ink-2">Kiraya due date (har mahine, 1–28)</span>
+            <span className="font-label text-xs font-semibold text-ink-2">Rent Due Date (every month, 1–28)</span>
             <input
               type="number"
               value={f.dueDay}
@@ -769,7 +769,7 @@ export function Settings() {
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="font-label text-xs font-semibold text-ink-2">Vacancy page par dikhne wala phone</span>
+            <span className="font-label text-xs font-semibold text-ink-2">Contact Phone (shown on Vacancy page)</span>
             <input
               type="tel"
               value={f.contactPhone}
@@ -789,12 +789,12 @@ export function Settings() {
             onClick={addTier}
             className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-primary-soft text-primary font-label text-xs font-bold hover:opacity-90 transition-opacity"
           >
-            + Naya Tier
+            + Add Tier
           </button>
         </div>
 
         <p className="font-body text-xs text-ink-2">
-          Jab bhi naya tenant onboard hoga ya naya room banega, ye rates automatically pre-fill honge.
+          Whenever a new tenant is onboarded or a new room is created, these rates will pre-fill automatically.
         </p>
 
         <div className="flex flex-col gap-3">
@@ -810,14 +810,14 @@ export function Settings() {
                     onClick={() => removeTier(idx)}
                     className="px-2.5 py-1 rounded-full bg-danger-soft text-on-danger-soft font-label text-xs font-semibold"
                   >
-                    Hatao
+                    Remove
                   </button>
                 )}
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
                 <label className="flex flex-col gap-1">
-                  <span className="font-label text-[11px] font-semibold text-ink-2">Kiraya (Rent ₹/mo)</span>
+                  <span className="font-label text-[11px] font-semibold text-ink-2">Rent (₹/mo)</span>
                   <input
                     type="number"
                     value={d.rent}
@@ -870,11 +870,11 @@ export function Settings() {
         onClick={save}
         className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50"
       >
-        {busy ? 'Save ho raha hai...' : 'Save karo'}
+        {busy ? 'Saving...' : 'Save Settings'}
       </button>
 
       <p className="text-center font-body text-xs text-ink-2">
-        Naya rate sirf aage ki readings par lagta hai. Due date naye mahine par lagti hai.
+        New rates apply to future readings. Due day applies to subsequent months.
       </p>
     </div>
   );

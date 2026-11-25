@@ -9,7 +9,7 @@ export default function Vacancy() {
   if (error) return <div className="min-h-screen bg-surface-2 p-4 flex items-center justify-center"><ErrorBox text={error} /></div>;
   if (!data) return <Loading />;
 
-  const wa = data.contactPhone && `https://wa.me/91${data.contactPhone}?text=${encodeURIComponent(`Namaste, ${data.pg} mein bed available hai kya?`)}`;
+  const wa = data.contactPhone && `https://wa.me/91${data.contactPhone}?text=${encodeURIComponent(`Hello, is a bed available at ${data.pg}?`)}`;
   const blocks = Array.from(new Set(data.beds.map((b) => b.block || 'Main Wing')));
   const filteredBeds = data.beds.filter((b) => filterBlock === 'all' || (b.block || 'Main Wing') === filterBlock);
 
@@ -17,23 +17,23 @@ export default function Vacancy() {
     <div className="w-full max-w-xl mx-auto min-h-screen flex flex-col justify-between bg-surface-2 text-ink">
       <header className="sticky top-0 z-20 bg-surface-2/95 backdrop-blur border-b border-line px-5 py-3.5 flex items-center justify-between">
         <div>
-          <span className="font-label text-xs font-semibold text-primary block">Khaali bed</span>
+          <span className="font-label text-xs font-semibold text-primary block">Available Beds</span>
           <strong className="font-title text-base font-bold text-ink">{data.pg}</strong>
         </div>
         <a
           href="/login"
           className="inline-flex items-center justify-center px-4 py-1.5 rounded-full bg-surface text-ink border border-line text-xs font-semibold hover:bg-surface-2 transition-colors"
         >
-          Staff / Tenant Login
+          Staff / Tenant Sign In
         </a>
       </header>
 
       <main className="flex-1 px-4 py-5 flex flex-col gap-4">
         <div className="flex flex-col gap-0.5">
           <h1 className="font-headline text-2xl font-bold text-ink">
-            {data.beds.length ? `${data.beds.length} bed khaali hain` : 'Abhi koi bed khaali nahi'}
+            {data.beds.length ? `${data.beds.length} beds available` : 'No beds available currently'}
           </h1>
-          <p className="font-body text-sm text-ink-2">Live occupancy · Direct owner booking</p>
+          <p className="font-body text-sm text-ink-2">Live occupancy · Direct booking</p>
         </div>
 
         {/* Block Filter Chips */}
@@ -48,7 +48,7 @@ export default function Vacancy() {
                   : 'bg-surface border border-line text-ink-2 hover:text-ink'
               }`}
             >
-              Sabhi ({data.beds.length})
+              All ({data.beds.length})
             </button>
             {blocks.map((blk) => (
               <button
@@ -79,12 +79,12 @@ export default function Vacancy() {
                   </span>
                 </div>
                 <small className="block text-xs text-ink-2 mt-0.5">
-                  🏢 {b.block} · Floor {b.floor ?? '-'} {b.daysVacant ? `· ${b.daysVacant} din se available` : ''}
+                  🏢 {b.block} · Floor {b.floor ?? '-'} {b.daysVacant ? `· Vacant for ${b.daysVacant} days` : ''}
                 </small>
               </div>
               <div className="flex flex-col items-end">
                 <b className="text-base font-bold text-primary tabular-nums">{inr(b.rent)}</b>
-                <small className="text-[11px] text-ink-2">/mahina</small>
+                <small className="text-[11px] text-ink-2">/month</small>
               </div>
             </article>
           ))}
@@ -99,7 +99,7 @@ export default function Vacancy() {
               rel="noreferrer"
               className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-success text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity"
             >
-              💬 WhatsApp pe poocho
+              💬 Inquire via WhatsApp
             </a>
           )}
           {data.contactPhone && (
@@ -107,14 +107,14 @@ export default function Vacancy() {
               href={`tel:+91${data.contactPhone}`}
               className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-surface text-ink border border-line font-label text-sm font-semibold hover:bg-surface-2 transition-colors"
             >
-              📞 Seedha call karo (+91 {data.contactPhone})
+              📞 Call Directly (+91 {data.contactPhone})
             </a>
           )}
         </div>
       </main>
 
       <footer className="text-center py-4 text-xs text-ink-2 border-t border-line bg-surface">
-        Aapka PG · Verified Hostel & PG Management System
+        PG Management · Verified Hostel & PG Management System
       </footer>
     </div>
   );

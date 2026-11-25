@@ -29,7 +29,7 @@ export default function ParentApproval() {
       });
       setData({ ...data, parentStatus: res.status, parentRemarks: remarks, parentActionAt: new Date() });
       setMsg({
-        text: action === 'approved' ? '✓ Chhutti safaltapoorvak approve kar di gayi hai!' : 'Chhutti aswikaar (reject) kar di gayi hai.',
+        text: action === 'approved' ? '✓ Leave successfully approved!' : 'Leave request has been rejected.',
         bad: action === 'rejected',
       });
     } catch (e) {
@@ -52,8 +52,8 @@ export default function ParentApproval() {
       <div className="min-h-screen bg-surface-2 flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-surface p-6 rounded-2xl border border-line text-center flex flex-col gap-3">
           <span className="material-symbols-outlined text-danger text-[40px] mx-auto">error</span>
-          <h2 className="text-lg font-bold text-ink">Link Expired ya Invalid Hai</h2>
-          <p className="text-xs text-ink-2">{error || 'Leave request record nahi mila.'}</p>
+          <h2 className="text-lg font-bold text-ink">Link Expired or Invalid</h2>
+          <p className="text-xs text-ink-2">{error || 'Leave request record not found.'}</p>
         </div>
       </div>
     );
@@ -70,7 +70,7 @@ export default function ParentApproval() {
           <div className="flex flex-col">
             <span className="text-[11px] font-bold uppercase tracking-wider text-primary">{data.pg}</span>
             <h1 className="text-base font-bold text-ink">Parent Leave Approval</h1>
-            <p className="text-xs text-ink-2">Mata-Pita se chhutti ki anumati</p>
+            <p className="text-xs text-ink-2">Approval request for student night-out / leave</p>
           </div>
         </header>
 
@@ -78,7 +78,7 @@ export default function ParentApproval() {
         <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm flex flex-col gap-4">
           <div className="flex items-center justify-between border-b border-line pb-3">
             <div>
-              <span className="text-[11px] text-ink-2">Student (Aapka Bacha):</span>
+              <span className="text-[11px] text-ink-2">Student Name:</span>
               <h2 className="text-lg font-bold text-ink">{data.wardName}</h2>
               <span className="text-xs text-ink-2">Room {data.room} (Bed {data.bed})</span>
             </div>
@@ -89,22 +89,22 @@ export default function ParentApproval() {
                 ? 'bg-danger-soft text-on-danger-soft'
                 : 'bg-warning-soft text-on-warning-soft'
             }`}>
-              {data.parentStatus === 'approved' ? 'Manjoor ✓' : data.parentStatus === 'rejected' ? 'Aswikaar ✕' : 'Pending ⏳'}
+              {data.parentStatus === 'approved' ? 'Approved ✓' : data.parentStatus === 'rejected' ? 'Rejected ✕' : 'Pending ⏳'}
             </span>
           </div>
 
           <div className="bg-surface-2 rounded-xl p-3.5 flex flex-col gap-2 text-xs">
             <div className="flex justify-between">
-              <span className="text-ink-2">Chhutti Kab Se:</span>
+              <span className="text-ink-2">Leave From:</span>
               <b className="text-ink tabular-nums">{fmtDate(data.startDate)}</b>
             </div>
             <div className="flex justify-between">
-              <span className="text-ink-2">Wapas Kab Aayenge:</span>
+              <span className="text-ink-2">Expected Return:</span>
               <b className="text-ink tabular-nums">{fmtDate(data.endDate)}</b>
             </div>
             <div className="flex justify-between">
-              <span className="text-ink-2">Kahan Jaa Rahe Hain:</span>
-              <b className="text-ink">{data.destination || 'Ghar'}</b>
+              <span className="text-ink-2">Destination:</span>
+              <b className="text-ink">{data.destination || 'Home'}</b>
             </div>
             <div className="flex justify-between border-t border-line/60 pt-2">
               <span className="text-ink-2">Reason:</span>
@@ -121,10 +121,10 @@ export default function ParentApproval() {
           {data.parentStatus === 'pending' ? (
             <div className="flex flex-col gap-3 pt-1">
               <label className="flex flex-col gap-1">
-                <span className="text-xs font-semibold text-ink-2">Aapka Sandesh / Remarks (Optional)</span>
+                <span className="text-xs font-semibold text-ink-2">Your Note / Remarks (Optional)</span>
                 <input
                   type="text"
-                  placeholder="e.g. Haan ghar aa raha hai"
+                  placeholder="e.g. Approved, coming home"
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-surface border border-line text-xs focus:border-primary focus:outline-none"
@@ -139,7 +139,7 @@ export default function ParentApproval() {
                   className="py-3 px-4 rounded-full bg-success text-on-primary font-bold text-xs shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
                   <span className="material-symbols-outlined text-[18px]">check</span>
-                  <span>Haan, Manjoor Hai</span>
+                  <span>Approve Leave</span>
                 </button>
 
                 <button
@@ -149,15 +149,15 @@ export default function ParentApproval() {
                   className="py-3 px-4 rounded-full bg-surface text-danger border border-line font-bold text-xs hover:bg-danger-soft transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
                   <span className="material-symbols-outlined text-[18px]">close</span>
-                  <span>Nahi, Reject</span>
+                  <span>Reject Leave</span>
                 </button>
               </div>
             </div>
           ) : (
             <div className="rounded-xl p-3.5 bg-surface-2 border border-line text-center text-xs text-ink-2 flex flex-col gap-1">
-              <span>Aapka faisla record ho gaya hai:</span>
+              <span>Your decision has been recorded:</span>
               <b className={data.parentStatus === 'approved' ? 'text-success' : 'text-danger'}>
-                {data.parentStatus === 'approved' ? '✓ Chhutti Manjoor (Approved)' : '✕ Chhutti Aswikaar (Rejected)'}
+                {data.parentStatus === 'approved' ? '✓ Leave Approved' : '✕ Leave Rejected'}
               </b>
               {data.parentRemarks && <span>"{data.parentRemarks}"</span>}
             </div>

@@ -18,13 +18,13 @@ export const settlementNo = () => `SET-${new Date().toISOString().slice(2, 10).r
 
 export async function recordPaymentTransaction(paymentId, { amount, method, reference, note, recordedBy }) {
   const payment = await Payment.findById(paymentId).populate('tenant');
-  if (!payment) throw new Error('Payment record nahi mila');
+  if (!payment) throw new Error('Payment record not found');
   const amt = Number(amount);
-  if (!(amt > 0)) throw new Error('Amount sahi daalo');
+  if (!(amt > 0)) throw new Error('Please enter a valid amount');
 
   const curPaid = payment.paidAmount || (payment.status === 'paid' ? payment.total : 0);
   const remaining = payment.total - curPaid;
-  if (amt > remaining) throw new Error(`Maximum baaki amount ₹${remaining} hai`);
+  if (amt > remaining) throw new Error(`Maximum remaining balance is ₹${remaining}`);
 
   const recNo = receiptNo(payment.month);
   const newPaid = curPaid + amt;
@@ -112,7 +112,7 @@ export async function createRazorpayOrder(amountPaise, receipt, { keyId, keySecr
     },
     body: JSON.stringify({ amount: amountPaise, currency: 'INR', receipt }),
   });
-  if (!res.ok) throw new Error('Razorpay order nahi bana: ' + (await res.text()));
+  if (!res.ok) throw new Error('Failed to create Razorpay order: ' + (await res.text()));
   return res.json();
 }
 

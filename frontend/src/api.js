@@ -16,7 +16,7 @@ async function handle(res) {
     setToken(null);
     window.location.href = '/';
   }
-  if (!res.ok) throw new Error(data.error || 'Kuch gadbad hui, dobara try karo');
+  if (!res.ok) throw new Error(data.error || 'Something went wrong, please try again');
   return data;
 }
 
@@ -40,7 +40,7 @@ export async function upload(file) {
 // Files need the login token, so <img src> can't be used directly: fetch as blob.
 export async function fileBlobUrl(name) {
   const res = await fetch(`${BASE}/files/${encodeURIComponent(name)}`, { headers: authHeader() });
-  if (!res.ok) throw new Error('File nahi mili');
+  if (!res.ok) throw new Error('File not found');
   return URL.createObjectURL(await res.blob());
 }
 
@@ -50,7 +50,7 @@ const loadRazorpay = () =>
     const s = document.createElement('script');
     s.src = 'https://checkout.razorpay.com/v1/checkout.js';
     s.onload = resolve;
-    s.onerror = () => reject(new Error('Payment page load nahi hua'));
+    s.onerror = () => reject(new Error('Failed to load payment gateway'));
     document.body.appendChild(s);
   });
 
@@ -64,7 +64,7 @@ export async function payNow(month) {
       key: o.keyId, amount: o.amount, currency: 'INR', order_id: o.orderId, name: o.name,
       prefill: { contact: o.phone }, theme: { color: '#6c47d9' },
       handler: (r) => confirm({ paymentId: r.razorpay_payment_id, signature: r.razorpay_signature }).then(resolve, reject),
-      modal: { ondismiss: () => reject(new Error('Payment cancel ho gaya')) },
+      modal: { ondismiss: () => reject(new Error('Payment was cancelled')) },
     });
     rz.open();
   });

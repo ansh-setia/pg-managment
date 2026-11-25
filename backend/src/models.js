@@ -28,7 +28,7 @@ export const DEFAULT_SHARING_TIERS = [
 
 export const Setting = mongoose.model('Setting', new Schema({
   key: { type: String, default: 'pg', unique: true },
-  name: { type: String, default: 'Aapka PG' },
+  name: { type: String, default: 'Your PG' },
   ratePerUnit: { type: Number, default: 9 },
   dueDay: { type: Number, default: 5, min: 1, max: 28 },
   contactPhone: { type: String, default: '' },

@@ -49,15 +49,15 @@ r.post('/readings', wrap(async (req, res) => {
     const room = await Room.findById(it.roomId);
     if (!room || it.current === '' || it.current == null) continue;
     const current = Number(it.current);
-    if (!Number.isFinite(current)) throw new HttpError(400, `Room ${room.number}: reading number honi chahiye`);
+    if (!Number.isFinite(current)) throw new HttpError(400, `Room ${room.number}: reading must be a valid number`);
     let existing = await MeterReading.findOne({ room: room._id, month });
-    if (existing?.sentAt) throw new HttpError(409, `Room ${room.number} ka bill pehle hi bhej diya gaya`);
+    if (existing?.sentAt) throw new HttpError(409, `Room ${room.number}: bill for this month has already been sent`);
     let previous = existing?.previous;
     if (previous == null) {
       const last = await MeterReading.findOne({ room: room._id, month: { $lt: month } }).sort({ month: -1 });
       previous = last ? last.current : room.initialReading;
     }
-    if (current < previous) throw new HttpError(400, `Room ${room.number}: abhi ki reading pichhli (${previous}) se kam nahi ho sakti`);
+    if (current < previous) throw new HttpError(400, `Room ${room.number}: current reading cannot be lower than previous (${previous})`);
     const units = current - previous;
     const doc = await MeterReading.findOneAndUpdate(
       { room: room._id, month },
@@ -102,9 +102,9 @@ r.get('/complaints', wrap(async (req, res) => {
 
 r.patch('/complaints/:id', wrap(async (req, res) => {
   const { status } = req.body;
-  if (!['new', 'in_progress', 'done'].includes(status)) throw new HttpError(400, 'Status galat hai');
+  if (!['new', 'in_progress', 'done'].includes(status)) throw new HttpError(400, 'Invalid complaint status');
   const c = await Complaint.findById(req.params.id).populate('tenant');
-  if (!c) throw new HttpError(404, 'Complaint nahi mili');
+  if (!c) throw new HttpError(404, 'Complaint not found');
   if (c.status !== status) {
     c.status = status;
     c.history.push({ status });
@@ -122,17 +122,17 @@ r.get('/tenants', wrap(async (_req, res) => {
 r.post('/tenants/quick-allot', wrap(async (req, res) => {
   const { name, bedId, rent: customRent, deposit: customDeposit, bookingAmount = 2000 } = req.body;
   const phone = normPhone(req.body.phone);
-  if (!name?.trim() || phone.length !== 10) throw new HttpError(400, 'Naam aur 10 digit mobile number zaroori hai');
-  if (!bedId) throw new HttpError(400, 'Bed chuno');
+  if (!name?.trim() || phone.length !== 10) throw new HttpError(400, 'Name and 10-digit mobile number are required');
+  if (!bedId) throw new HttpError(400, 'Please select a bed');
 
   const bed = await Bed.findOneAndUpdate({ _id: bedId, status: 'vacant' }, { status: 'occupied', vacantSince: null }, { new: true }).populate('room');
-  if (!bed) throw new HttpError(409, 'Ye bed abhi available nahi hai');
+  if (!bed) throw new HttpError(409, 'This bed is no longer available');
 
   try {
     let user = await User.findOne({ phone });
-    if (user && user.role !== 'tenant') throw new HttpError(409, 'Ye number staff ka hai');
+    if (user && user.role !== 'tenant') throw new HttpError(409, 'This number belongs to a staff member');
     if (user && (await Tenant.exists({ user: user._id, status: { $in: ['invited', 'active', 'notice'] } }))) {
-      throw new HttpError(409, 'Ye tenant pehle se active rooms mein hai');
+      throw new HttpError(409, 'This tenant is already assigned to an active bed');
     }
 
     if (user) { user.active = true; user.name = name.trim(); await user.save(); }
@@ -183,7 +183,7 @@ r.get('/leaves', wrap(async (_req, res) => {
 
 r.patch('/leaves/:id/acknowledge', wrap(async (req, res) => {
   const l = await Leave.findById(req.params.id);
-  if (!l) throw new HttpError(404, 'Leave request nahi mili');
+  if (!l) throw new HttpError(404, 'Leave request not found');
   l.managerStatus = 'acknowledged';
   await l.save();
   res.json({ ok: true, leave: l });
@@ -221,19 +221,19 @@ r.post('/tenants', wrap(async (req, res) => {
   const { name, bedId, docs = {} } = req.body;
   const phone = normPhone(req.body.phone);
   const rent = Number(req.body.rent), deposit = Number(req.body.deposit || 0), foodCharge = Number(req.body.foodCharge || 0);
-  if (!name?.trim() || phone.length !== 10) throw new HttpError(400, 'Naam aur 10 digit phone zaroori hai');
-  if (!(rent > 0) || deposit < 0 || foodCharge < 0) throw new HttpError(400, 'Kiraya aur deposit sahi daalo');
-  if (!docs.idProof) throw new HttpError(400, 'ID proof upload karo');
+  if (!name?.trim() || phone.length !== 10) throw new HttpError(400, 'Name and 10-digit mobile number are required');
+  if (!(rent > 0) || deposit < 0 || foodCharge < 0) throw new HttpError(400, 'Please enter valid rent and deposit');
+  if (!docs.idProof) throw new HttpError(400, 'Please upload ID proof');
 
   let user = await User.findOne({ phone });
-  if (user && user.role !== 'tenant') throw new HttpError(409, 'Ye number staff ka hai');
+  if (user && user.role !== 'tenant') throw new HttpError(409, 'This number belongs to a staff member');
   if (user && (await Tenant.exists({ user: user._id, status: { $in: ['active', 'notice'] } }))) {
-    throw new HttpError(409, 'Ye tenant pehle se rooms mein hai');
+    throw new HttpError(409, 'This tenant is already assigned to an active bed');
   }
 
   // Claim the bed atomically so two managers can't give it to two people.
   const bed = await Bed.findOneAndUpdate({ _id: bedId, status: 'vacant' }, { status: 'occupied', vacantSince: null }, { new: true });
-  if (!bed) throw new HttpError(409, 'Ye bed ab khaali nahi hai');
+  if (!bed) throw new HttpError(409, 'This bed is no longer vacant');
   try {
     if (user) { user.active = true; user.name = name.trim(); await user.save(); }
     else user = await User.create({ phone, name: name.trim(), role: 'tenant' });
@@ -255,9 +255,9 @@ r.post('/tenants', wrap(async (req, res) => {
 // ---- Payments (Offline / Partial) ----
 r.post('/payments/record-offline', wrap(async (req, res) => {
   const { paymentId, amount, method = 'cash', reference = '', note = '' } = req.body;
-  if (!paymentId) throw new HttpError(400, 'Payment ID zaroori hai');
+  if (!paymentId) throw new HttpError(400, 'Payment ID is required');
   if (!['cash', 'upi_owner', 'cheque', 'neft'].includes(method)) {
-    throw new HttpError(400, 'Valid payment method chuno (cash, upi_owner, cheque, neft)');
+    throw new HttpError(400, 'Please select a valid payment method (cash, upi_owner, cheque, neft)');
   }
   const result = await recordPaymentTransaction(paymentId, {
     amount,
@@ -310,7 +310,7 @@ r.get('/payments/due', wrap(async (req, res) => {
 r.post('/tenants/:id/notice', wrap(async (req, res) => {
   const { vacatingDate, reason = 'personal', note = '' } = req.body;
   const t = await Tenant.findById(req.params.id);
-  if (!t || t.status === 'left') throw new HttpError(404, 'Active tenant nahi mila');
+  if (!t || t.status === 'left') throw new HttpError(404, 'Active tenant not found');
   t.status = 'notice';
   t.noticeDate = new Date();
   t.notice = {
@@ -328,7 +328,7 @@ r.post('/tenants/:id/notice', wrap(async (req, res) => {
 
 r.post('/tenants/:id/cancel-notice', wrap(async (req, res) => {
   const t = await Tenant.findById(req.params.id);
-  if (!t || t.status !== 'notice') throw new HttpError(404, 'Notice wala tenant nahi mila');
+  if (!t || t.status !== 'notice') throw new HttpError(404, 'No tenant found on notice');
   t.status = 'active';
   if (t.notice) {
     t.notice.status = 'cancelled';
@@ -341,7 +341,7 @@ r.post('/tenants/:id/cancel-notice', wrap(async (req, res) => {
 
 r.get('/tenants/:id/settlement-preview', wrap(async (req, res) => {
   const t = await Tenant.findById(req.params.id).populate('room bed');
-  if (!t) throw new HttpError(404, 'Tenant nahi mila');
+  if (!t) throw new HttpError(404, 'Tenant not found');
 
   const unpaidPayments = await Payment.find({
     tenant: t._id,
@@ -370,7 +370,7 @@ r.get('/tenants/:id/settlement-preview', wrap(async (req, res) => {
 r.post('/tenants/:id/checkout-settle', wrap(async (req, res) => {
   const { deductions = [], refundMethod = 'upi', refundRef = '', notes = '' } = req.body;
   const t = await Tenant.findById(req.params.id).populate('room bed');
-  if (!t || t.status === 'left') throw new HttpError(404, 'Active/notice tenant nahi mila');
+  if (!t || t.status === 'left') throw new HttpError(404, 'Active or notice tenant not found');
 
   const unpaidPayments = await Payment.find({ tenant: t._id, status: { $in: ['due', 'partial'] } });
   const pendingDues = unpaidPayments.reduce((s, p) => s + (p.total - (p.paidAmount || 0)), 0);
@@ -449,7 +449,7 @@ r.get('/settlements/:no', wrap(async (req, res) => {
     .populate('tenant', 'name phone joinedOn')
     .populate('room', 'number floor')
     .populate('bed', 'label');
-  if (!s) throw new HttpError(404, 'Settlement slip nahi mili');
+  if (!s) throw new HttpError(404, 'Settlement statement not found');
   const settings = await getSettings();
   res.json({ pg: settings.name, settlement: s });
 }));
@@ -457,7 +457,7 @@ r.get('/settlements/:no', wrap(async (req, res) => {
 r.post('/tenants/:id/checkout', wrap(async (req, res) => {
   // Legacy route redirecting to quick settlement
   const t = await Tenant.findOneAndUpdate({ _id: req.params.id, status: { $in: ['active', 'notice'] } }, { status: 'left', leftOn: new Date() }, { new: true });
-  if (!t) throw new HttpError(404, 'Tenant nahi mila');
+  if (!t) throw new HttpError(404, 'Tenant not found');
   await Bed.updateOne({ _id: t.bed }, { status: 'vacant', vacantSince: new Date() });
   await User.updateOne({ _id: t.user }, { active: false });
   res.json({ ok: true, deposit: t.deposit });
@@ -470,7 +470,7 @@ r.get('/menu', wrap(async (req, res) => {
 }));
 
 r.put('/menu/:date', wrap(async (req, res) => {
-  if (!isDate(req.params.date)) throw new HttpError(400, 'Date galat hai');
+  if (!isDate(req.params.date)) throw new HttpError(400, 'Invalid date format');
   const pick = (k) => String(req.body[k] || '').slice(0, 200);
   const d = await MenuDay.findOneAndUpdate({ date: req.params.date }, { nashta: pick('nashta'), lunch: pick('lunch'), dinner: pick('dinner') }, { upsert: true, new: true });
   res.json(d);

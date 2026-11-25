@@ -13,13 +13,13 @@ const hash = (phone, otp) => crypto.createHash('sha256').update(`${phone}:${otp}
 
 r.post('/request-otp', limiter, wrap(async (req, res) => {
   const phone = normPhone(req.body.phone);
-  if (phone.length !== 10) throw new HttpError(400, '10 digit ka mobile number daalo');
+  if (phone.length !== 10) throw new HttpError(400, 'Please enter a 10-digit mobile number');
   const out = { ok: true, otpLength: config.otpLength };
   const user = await User.findOne({ phone, active: true });
   if (!user) return res.json(out); // same reply either way, so numbers can't be probed
 
   const last = await OtpCode.findOne({ phone });
-  if (last && Date.now() - last.createdAt.getTime() < 30000) throw new HttpError(429, '30 second baad dobara OTP mangao');
+  if (last && Date.now() - last.createdAt.getTime() < 30000) throw new HttpError(429, 'Please wait 30 seconds before requesting another OTP');
 
   const otp = String(crypto.randomInt(0, 10 ** config.otpLength)).padStart(config.otpLength, '0');
   await OtpCode.findOneAndUpdate(
@@ -36,15 +36,15 @@ r.post('/verify', limiter, wrap(async (req, res) => {
   const phone = normPhone(req.body.phone);
   const { otp, role } = req.body;
   const rec = await OtpCode.findOne({ phone });
-  if (!rec || rec.expiresAt < new Date()) throw new HttpError(400, 'OTP expire ho gaya, dobara mangao');
-  if (rec.attempts >= 5) throw new HttpError(429, 'Bahut galat try ho gaye, naya OTP mangao');
+  if (!rec || rec.expiresAt < new Date()) throw new HttpError(400, 'OTP has expired, please request a new one');
+  if (rec.attempts >= 5) throw new HttpError(429, 'Too many incorrect attempts, please request a new OTP');
   if (hash(phone, String(otp)) !== rec.hash) {
     rec.attempts += 1;
     await rec.save();
-    throw new HttpError(400, 'OTP galat hai');
+    throw new HttpError(400, 'Invalid OTP');
   }
   const user = await User.findOne({ phone, active: true });
-  if (!user || user.role !== role) throw new HttpError(403, 'Is number pe ye role nahi hai');
+  if (!user || user.role !== role) throw new HttpError(403, 'No account registered with this role for this phone number');
   await OtpCode.deleteOne({ phone });
   res.json({ token: signToken(user), user: { id: user._id, name: user.name, role: user.role } });
 }));

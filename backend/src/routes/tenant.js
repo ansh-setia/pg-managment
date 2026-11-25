@@ -10,12 +10,12 @@ const r = Router();
 
 async function me(req) {
   const t = await Tenant.findOne({ user: req.user._id, status: { $in: ['active', 'notice'] } }).populate('room bed');
-  if (!t) throw new HttpError(404, 'Aapka tenant record nahi mila. Manager se baat karo.');
+  if (!t) throw new HttpError(404, 'Tenant record not found. Please contact the manager.');
   return t;
 }
 const monthParam = (q) => {
   const m = q || monthStr();
-  if (!isMonth(m)) throw new HttpError(400, 'Month galat hai');
+  if (!isMonth(m)) throw new HttpError(400, 'Invalid month format');
   return m;
 };
 
@@ -69,7 +69,7 @@ r.post('/pay/order', wrap(async (req, res) => {
   const t = await me(req);
   const month = monthParam(req.body.month);
   const dues = await Payment.find({ tenant: t._id, month, status: { $in: ['due', 'partial'] } });
-  if (!dues.length) throw new HttpError(400, 'Is mahine ka kuch baaki nahi hai');
+  if (!dues.length) throw new HttpError(400, 'No outstanding dues for this month');
   const total = dues.reduce((s, p) => s + Math.max(0, p.total - (p.paidAmount || 0)), 0);
   const rz = config.razorpay;
   let mode, orderId;
@@ -77,7 +77,7 @@ r.post('/pay/order', wrap(async (req, res) => {
     mode = 'razorpay';
     orderId = (await createRazorpayOrder(total * 100, `${t._id}-${month}`.slice(0, 40), rz)).id;
   } else {
-    if (!config.allowMock) throw new HttpError(503, 'Payment gateway set nahi hai');
+    if (!config.allowMock) throw new HttpError(503, 'Payment gateway is not configured');
     mode = 'mock';
     orderId = 'mock_' + crypto.randomUUID();
   }
@@ -91,12 +91,12 @@ r.post('/pay/confirm', wrap(async (req, res) => {
   const month = monthParam(req.body.month);
   const { orderId, paymentId, signature } = req.body;
   const dues = await Payment.find({ tenant: t._id, month, status: { $in: ['due', 'partial'] }, gatewayOrderId: orderId });
-  if (!dues.length) throw new HttpError(400, 'Ye payment order nahi mila ya pehle hi ho chuka hai');
+  if (!dues.length) throw new HttpError(400, 'Payment order not found or already paid');
   const rz = config.razorpay;
   if (rz.keyId && rz.keySecret) {
-    if (!verifyRazorpaySignature(orderId, paymentId, signature, rz.keySecret)) throw new HttpError(400, 'Payment verify nahi hui');
+    if (!verifyRazorpaySignature(orderId, paymentId, signature, rz.keySecret)) throw new HttpError(400, 'Payment verification failed');
   } else if (!(config.allowMock && String(orderId).startsWith('mock_'))) {
-    throw new HttpError(400, 'Mock payment allowed nahi hai');
+    throw new HttpError(400, 'Mock payment is not allowed');
   }
   const rcpt = receiptNo(month);
   for (const p of dues) {
@@ -126,10 +126,10 @@ r.post('/pay/confirm', wrap(async (req, res) => {
 r.post('/notice', wrap(async (req, res) => {
   const t = await me(req);
   const { vacatingDate, reason = 'personal', note = '' } = req.body;
-  if (!vacatingDate) throw new HttpError(400, 'Vacating date zaroori hai');
+  if (!vacatingDate) throw new HttpError(400, 'Vacating date is required');
   const vDate = new Date(vacatingDate);
   if (isNaN(vDate.getTime()) || vDate < new Date()) {
-    throw new HttpError(400, 'Aage ki valid date chuno');
+    throw new HttpError(400, 'Please select a valid future date');
   }
   t.status = 'notice';
   t.noticeDate = new Date();
@@ -147,7 +147,7 @@ r.post('/notice', wrap(async (req, res) => {
 
 r.get('/settlement', wrap(async (req, res) => {
   const s = await Settlement.findOne({ user: req.user._id }).sort({ createdAt: -1 });
-  if (!s) throw new HttpError(404, 'Settlement slip nahi mili');
+  if (!s) throw new HttpError(404, 'Settlement statement not found');
   const settings = await getSettings();
   res.json({ pg: settings.name, settlement: s });
 }));
@@ -155,19 +155,19 @@ r.get('/settlement', wrap(async (req, res) => {
 // ---- Leave & Night Out Pass ----
 r.post('/leave', wrap(async (req, res) => {
   const t = await me(req);
-  const { startDate, endDate, reason, destination = 'Ghar' } = req.body;
-  if (!startDate || !endDate) throw new HttpError(400, 'Chhutti shuru aur khatam hone ki date zaroori hai');
-  if (!reason?.trim()) throw new HttpError(400, 'Chhutti ka reason likhein');
+  const { startDate, endDate, reason, destination = 'Home' } = req.body;
+  if (!startDate || !endDate) throw new HttpError(400, 'Start and end dates are required');
+  if (!reason?.trim()) throw new HttpError(400, 'Please provide a reason for leave');
 
   const sDate = new Date(startDate);
   const eDate = new Date(endDate);
   if (isNaN(sDate.getTime()) || isNaN(eDate.getTime()) || eDate < sDate) {
-    throw new HttpError(400, 'Valid dates chuno');
+    throw new HttpError(400, 'Please select valid start and end dates');
   }
 
   const parentPhone = t.parent?.fatherPhone || t.parent?.motherPhone;
   if (!parentPhone) {
-    throw new HttpError(400, 'Profile mein mummy/papa ka phone number nahi mila. Manager se update karwayein.');
+    throw new HttpError(400, 'Parent phone number is not configured in your profile. Please ask manager to update it.');
   }
 
   const approvalToken = crypto.randomBytes(16).toString('hex');
@@ -178,14 +178,14 @@ r.post('/leave', wrap(async (req, res) => {
     reason: reason.trim(),
     destination: destination.trim(),
     parentPhone,
-    parentName: t.parent?.fatherName || t.parent?.motherName || 'Mata/Pita',
+    parentName: t.parent?.fatherName || t.parent?.motherName || 'Parent',
     approvalToken,
     parentStatus: 'pending',
   });
 
   await sendWhatsApp(parentPhone, 'leave_approval_request', {
     wardName: t.name,
-    dates: `${sDate.toLocaleDateString('en-IN')} se ${eDate.toLocaleDateString('en-IN')}`,
+    dates: `${sDate.toLocaleDateString('en-IN')} to ${eDate.toLocaleDateString('en-IN')}`,
     reason,
     approvalToken,
   });
@@ -207,7 +207,7 @@ r.get('/leaves', wrap(async (req, res) => {
 r.get('/receipt/:receiptNo', wrap(async (req, res) => {
   const t = await me(req);
   const items = await Payment.find({ tenant: t._id, receiptNo: req.params.receiptNo, status: 'paid' });
-  if (!items.length) throw new HttpError(404, 'Receipt nahi mili');
+  if (!items.length) throw new HttpError(404, 'Receipt not found');
   const s = await getSettings();
   res.json({
     pg: s.name, receiptNo: req.params.receiptNo, tenant: t.name, room: t.room?.number, bed: t.bed?.label,
@@ -238,7 +238,7 @@ r.get('/bill', wrap(async (req, res) => {
 r.post('/complaints', wrap(async (req, res) => {
   const t = await me(req);
   const { category, text = '', photo } = req.body;
-  if (!['ac', 'wifi', 'water', 'cleaning', 'other'].includes(category)) throw new HttpError(400, 'Category chuno');
+  if (!['ac', 'wifi', 'water', 'cleaning', 'other'].includes(category)) throw new HttpError(400, 'Please select a valid category');
   const c = await Complaint.create({
     tenant: t._id, room: t.room._id, category, text: String(text).slice(0, 500), photo,
     history: [{ status: 'new' }],
@@ -274,7 +274,7 @@ r.get('/menu', wrap(async (req, res) => {
 r.post('/menu/skip', wrap(async (req, res) => {
   const t = await me(req);
   const { date, skip } = req.body;
-  if (!isDate(date) || date < todayStr()) throw new HttpError(400, 'Ye date nahi chalegi');
+  if (!isDate(date) || date < todayStr()) throw new HttpError(400, 'Cannot skip past dates');
   if (skip === false) await FoodSkip.deleteOne({ tenant: t._id, date });
   else await FoodSkip.updateOne({ tenant: t._id, date }, { $setOnInsert: { date } }, { upsert: true });
   res.json({ ok: true });
@@ -284,7 +284,7 @@ r.post('/menu/rate', wrap(async (req, res) => {
   const t = await me(req);
   const { date, meal, stars } = req.body;
   if (!isDate(date) || date > todayStr() || !['nashta', 'lunch', 'dinner'].includes(meal) || !(stars >= 1 && stars <= 5)) {
-    throw new HttpError(400, 'Rating galat hai');
+    throw new HttpError(400, 'Invalid meal rating');
   }
   await MenuRating.updateOne({ tenant: t._id, date, meal }, { stars: Math.round(stars) }, { upsert: true });
   res.json({ ok: true });

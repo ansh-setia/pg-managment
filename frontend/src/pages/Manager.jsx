@@ -31,7 +31,7 @@ export function Meter() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-0.5">
-        <h1 className="font-headline text-2xl font-bold text-ink">Meter reading</h1>
+        <h1 className="font-headline text-2xl font-bold text-ink">Meter Readings</h1>
         <p className="font-body text-sm text-ink-2">
           {monthName(month)} · ₹{data.rate} / unit
         </p>
@@ -52,25 +52,25 @@ export function Meter() {
             <div>
               <b className="text-base font-bold text-ink">Room {r.number}</b>
               <small className="block text-xs text-ink-2 mt-0.5">
-                Pichhli {r.previous} · {r.people} log
+                Previous: {r.previous} · {r.people} occupants
               </small>
             </div>
             <div className="flex flex-col items-end gap-1.5 shrink-0">
               {r.sent ? (
                 <span className="px-3 py-1 rounded-full bg-success-soft text-on-success-soft text-xs font-bold">
-                  Bhej diya · {inr(r.total)}
+                  Sent · {inr(r.total)}
                 </span>
               ) : (
                 <div className="flex flex-col items-end gap-1">
                   <input
                     inputMode="numeric"
-                    placeholder="Abhi reading"
+                    placeholder="Current reading"
                     value={cur(r)}
                     onChange={(e) => setVals({ ...vals, [r.id]: e.target.value.replace(/\D/g, '') })}
                     className="w-28 px-3 py-1.5 rounded-lg bg-surface border border-line text-ink text-sm text-right tabular-nums focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
                   />
                   <small className="text-xs text-ink-2 font-semibold">
-                    {bill(r) == null ? (cur(r) !== '' ? 'Pichhli se kam' : '') : inr(bill(r))}
+                    {bill(r) == null ? (cur(r) !== '' ? 'Lower than previous' : '') : inr(bill(r))}
                   </small>
                   <FilePick label="Photo" value={photos[r.id]} onChange={(f) => setPhotos({ ...photos, [r.id]: f })} capture="environment" />
                 </div>
@@ -90,18 +90,18 @@ export function Meter() {
         <button
           type="button"
           disabled={busy}
-          onClick={() => run(save, (r) => `${r.saved} room ki reading save ho gayi ✓`)}
+          onClick={() => run(save, (r) => `${r.saved} room readings saved ✓`)}
           className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-surface text-ink border border-line font-label text-sm font-semibold hover:bg-surface-2 transition-colors disabled:opacity-50"
         >
-          Reading save karo
+          Save Readings
         </button>
         <button
           type="button"
           disabled={busy}
-          onClick={() => window.confirm('Bill sabhi tenants ko bhej dein? Bhejne ke baad reading badal nahi sakti.') && run(saveAndSend, (r) => `${r.sent} room ka bill bhej diya ✓${r.skippedEmptyRooms.length ? ` (khaali: ${r.skippedEmptyRooms.join(', ')})` : ''}`)}
+          onClick={() => window.confirm('Send electricity bills to all tenants? Readings cannot be changed after sending.') && run(saveAndSend, (r) => `${r.sent} room bills sent ✓${r.skippedEmptyRooms.length ? ` (vacant: ${r.skippedEmptyRooms.join(', ')})` : ''}`)}
           className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50"
         >
-          Sabko bill bhejo
+          Send Bills to All
         </button>
       </div>
     </div>
@@ -109,8 +109,8 @@ export function Meter() {
 }
 
 // ---- Complaints ----
-const CAT = { ac: '❄️ AC', wifi: '📶 WiFi', water: '💧 Paani', cleaning: '🧹 Safai', other: '🔧 Aur' };
-const ST = { new: ['Naya', 'bg-danger-soft text-on-danger-soft'], in_progress: ['Chalu', 'bg-warning-soft text-on-warning-soft'], done: ['Done ✓', 'bg-success-soft text-on-success-soft'] };
+const CAT = { ac: '❄️ AC', wifi: '📶 WiFi', water: '💧 Water', cleaning: '🧹 Cleaning', other: '🔧 Other' };
+const ST = { new: ['New', 'bg-danger-soft text-on-danger-soft'], in_progress: ['In Progress', 'bg-warning-soft text-on-warning-soft'], done: ['Resolved ✓', 'bg-success-soft text-on-success-soft'] };
 
 export function Complaints() {
   const { data, error, reload } = useLoad(() => api('/manager/complaints'));
@@ -134,22 +134,22 @@ export function Complaints() {
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-surface border border-line rounded-xl p-4 shadow-sm flex flex-col items-center justify-center gap-1 text-center">
           <span className="font-headline text-2xl font-bold text-danger tabular-nums">{data.counts.new}</span>
-          <span className="font-body text-xs text-ink-2">Naye</span>
+          <span className="font-body text-xs text-ink-2">New</span>
         </div>
         <div className="bg-surface border border-line rounded-xl p-4 shadow-sm flex flex-col items-center justify-center gap-1 text-center">
           <span className="font-headline text-2xl font-bold text-warning tabular-nums">{data.counts.in_progress}</span>
-          <span className="font-body text-xs text-ink-2">Chalu</span>
+          <span className="font-body text-xs text-ink-2">In Progress</span>
         </div>
         <div className="bg-surface border border-line rounded-xl p-4 shadow-sm flex flex-col items-center justify-center gap-1 text-center">
           <span className="font-headline text-2xl font-bold text-success tabular-nums">{data.counts.done}</span>
-          <span className="font-body text-xs text-ink-2">Done</span>
+          <span className="font-body text-xs text-ink-2">Resolved</span>
         </div>
       </div>
 
       {err && <ErrorBox text={err} />}
       {data.items.length === 0 && (
         <p className="bg-surface border border-line rounded-xl p-6 text-center text-sm text-ink-2">
-          Koi complaint nahi hai. Sab theek hai! ✓
+          No complaints registered. All systems operational! ✓
         </p>
       )}
 
@@ -234,7 +234,7 @@ export function Tenants() {
     setBusy(true); setMsg({ text: '' });
     try {
       await api('/manager/tenants', { method: 'POST', body: f });
-      setF(blank); setAdding(false); setMsg({ text: 'Tenant save ho gaya. Bed ab occupied hai ✓' }); reload(); beds.reload();
+      setF(blank); setAdding(false); setMsg({ text: 'Tenant saved successfully. Bed is now marked occupied ✓' }); reload(); beds.reload();
     } catch (e) { setMsg({ text: e.message, bad: true }); } finally { setBusy(false); }
   };
 
@@ -248,8 +248,8 @@ export function Tenants() {
     return (
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-0.5">
-          <h1 className="font-headline text-2xl font-bold text-ink">Naya tenant</h1>
-          <p className="font-body text-sm text-ink-2">Room, bed, kiraya aur documents</p>
+          <h1 className="font-headline text-2xl font-bold text-ink">New Tenant Onboarding</h1>
+          <p className="font-body text-sm text-ink-2">Room, bed assignment, rent and verification documents</p>
         </div>
 
         <form onSubmit={submit} className="bg-surface border border-line rounded-2xl p-5 shadow-sm flex flex-col gap-4">
@@ -261,7 +261,7 @@ export function Tenants() {
               required
               className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
             >
-              <option value="">Khaali bed chuno</option>
+              <option value="">Select vacant bed</option>
               {beds.data?.map((b) => (
                 <option key={b._id} value={b._id}>
                   Room {b.room?.number || b.room} (Bed {b.label?.split('-')[1] || b.label}) · {b.room?.sharingType ? `${b.room.sharingType}-Sharing` : ''} · {b.room?.block || ''} · ₹{b.rent}/mo
@@ -281,10 +281,10 @@ export function Tenants() {
           )}
 
           <label className="flex flex-col gap-1.5">
-            <span className="font-label text-xs font-semibold text-ink-2">Naam</span>
+            <span className="font-label text-xs font-semibold text-ink-2">Full Name</span>
             <input
               type="text"
-              placeholder="Tenant ka poora naam"
+              placeholder="Tenant's full name"
               value={f.name}
               onChange={(e) => setF({ ...f, name: e.target.value })}
               required
@@ -293,7 +293,7 @@ export function Tenants() {
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="font-label text-xs font-semibold text-ink-2">Phone</span>
+            <span className="font-label text-xs font-semibold text-ink-2">Mobile Phone</span>
             <input
               type="tel"
               inputMode="numeric"
@@ -307,7 +307,7 @@ export function Tenants() {
 
           <div className="grid grid-cols-3 gap-2.5">
             <label className="flex flex-col gap-1">
-              <span className="font-label text-xs font-semibold text-ink-2">Kiraya</span>
+              <span className="font-label text-xs font-semibold text-ink-2">Rent / Mo</span>
               <input
                 type="number"
                 value={f.rent}
@@ -317,7 +317,7 @@ export function Tenants() {
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="font-label text-xs font-semibold text-ink-2">Khaana</span>
+              <span className="font-label text-xs font-semibold text-ink-2">Food Charge</span>
               <input
                 type="number"
                 value={f.foodCharge}
@@ -340,12 +340,12 @@ export function Tenants() {
           <div className="flex flex-col gap-2 pt-1">
             <h2 className="font-title text-sm font-bold text-ink">Documents</h2>
             <div className="grid grid-cols-2 gap-2.5">
-              <FilePick label="ID proof (zaroori)" value={f.docs.idProof} onChange={(v) => setDoc('idProof', v)} accept="image/*,application/pdf" />
+              <FilePick label="ID Proof (Required)" value={f.docs.idProof} onChange={(v) => setDoc('idProof', v)} accept="image/*,application/pdf" />
               <FilePick label="Photo" value={f.docs.photo} onChange={(v) => setDoc('photo', v)} />
               <FilePick label="Agreement" value={f.docs.agreement} onChange={(v) => setDoc('agreement', v)} accept="image/*,application/pdf" />
               <label className={`border border-dashed rounded-xl p-3 text-xs font-semibold text-center cursor-pointer transition-colors ${f.docs.policeVerification === 'done' ? 'bg-success-soft text-on-success-soft border-success' : 'bg-surface text-ink-2 border-line'}`}>
                 <input type="checkbox" hidden checked={f.docs.policeVerification === 'done'} onChange={(e) => setDoc('policeVerification', e.target.checked ? 'done' : 'pending')} />
-                <span>{f.docs.policeVerification === 'done' ? '✓ Police verification ho gayi' : '+ Police verification?'}</span>
+                <span>{f.docs.policeVerification === 'done' ? '✓ Police verification completed' : '+ Police verification done?'}</span>
               </label>
             </div>
           </div>
@@ -362,14 +362,14 @@ export function Tenants() {
               disabled={busy || !f.bedId || !f.name || !f.phone || !f.rent || !f.docs.idProof}
               className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50"
             >
-              {busy ? 'Save ho raha hai...' : 'Tenant save karo'}
+              {busy ? 'Saving...' : 'Save Tenant'}
             </button>
             <button
               type="button"
               onClick={() => { setAdding(false); setMsg({ text: '' }); }}
               className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-surface text-ink border border-line font-label text-sm font-semibold hover:bg-surface-2 transition-colors"
             >
-              Wapas
+              Cancel
             </button>
           </div>
         </form>
@@ -378,10 +378,10 @@ export function Tenants() {
   }
 
   const cancelNotice = async (t) => {
-    if (!window.confirm(`${t.name} ka notice cancel karna hai aur bed occupied rakhna hai?`)) return;
+    if (!window.confirm(`Cancel vacating notice for ${t.name} and keep bed occupied?`)) return;
     try {
       await api(`/manager/tenants/${t._id}/cancel-notice`, { method: 'POST' });
-      setMsg({ text: 'Notice cancel ho gaya ✓' });
+      setMsg({ text: 'Notice cancelled successfully ✓' });
       reload();
       beds.reload();
     } catch (e) {
@@ -392,8 +392,8 @@ export function Tenants() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-0.5">
-        <h1 className="font-headline text-2xl font-bold text-ink">Tenants & Leaves</h1>
-        <p className="font-body text-sm text-ink-2 tabular-nums">Spot booking · Onboarding · Chhutti approval</p>
+        <h1 className="font-headline text-2xl font-bold text-ink">Tenants & Outpasses</h1>
+        <p className="font-body text-sm text-ink-2 tabular-nums">Spot booking · Self onboarding · Leave approval</p>
       </div>
 
       {/* View Switcher: Tenants vs Leaves */}
@@ -415,7 +415,7 @@ export function Tenants() {
           }`}
         >
           <span className="material-symbols-outlined text-[16px]">flight_takeoff</span>
-          <span>Chhutti Passes</span>
+          <span>Leave Passes</span>
           {leaves.data?.filter((l) => l.parentStatus === 'pending').length > 0 && (
             <span className="w-2 h-2 rounded-full bg-warning" />
           )}
@@ -490,7 +490,7 @@ export function Tenants() {
 
                   {isInvited && (
                     <div className="bg-primary-soft/40 border border-primary-soft text-primary px-3.5 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between">
-                      <span>Aadhaar & Police Verification link bheja gaya hai</span>
+                      <span>Verification link sent to student</span>
                       <button
                         type="button"
                         onClick={() => setInviteSuccess({
@@ -500,20 +500,20 @@ export function Tenants() {
                         })}
                         className="px-2.5 py-1 rounded-full bg-primary text-on-primary font-bold text-[11px] hover:opacity-90"
                       >
-                        Link Bhejo
+                        Send Link
                       </button>
                     </div>
                   )}
 
                   {isOnNotice && (
                     <div className="bg-warning-soft text-on-warning-soft px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-between">
-                      <span>⚠️ Vacating Date: <b>{fmtDate(t.notice?.vacatingDate || t.noticeDate)}</b></span>
+                      <span>⚠️ Move-out Date: <b>{fmtDate(t.notice?.vacatingDate || t.noticeDate)}</b></span>
                       <span className="opacity-80 capitalize">Reason: {t.notice?.reason || 'Notice'}</span>
                     </div>
                   )}
 
                   <p className="font-body text-xs text-ink-2 tabular-nums">
-                    Kiraya {inr(t.rent)} · Deposit {inr(t.deposit)} · Police verification: {t.docs?.policeVerification === 'done' ? 'ho gayi ✓' : t.docs?.policeVerification === 'submitted' ? 'submitted (review pending)' : 'baaki'}
+                    Rent {inr(t.rent)} · Deposit {inr(t.deposit)} · Police verification: {t.docs?.policeVerification === 'done' ? 'Completed ✓' : t.docs?.policeVerification === 'submitted' ? 'Submitted (Review Pending)' : 'Pending'}
                   </p>
 
                   <footer className="flex items-center gap-2 pt-1 border-t border-line flex-wrap">
@@ -523,7 +523,7 @@ export function Tenants() {
                       className="px-3 py-1.5 rounded-full bg-success-soft text-on-success-soft font-label text-xs font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-1"
                     >
                       <span className="material-symbols-outlined text-[16px]">payments</span>
-                      <span>Kiraya Jama</span>
+                      <span>Collect Rent</span>
                     </button>
 
                     {!isOnNotice ? (
@@ -533,7 +533,7 @@ export function Tenants() {
                         className="px-3 py-1.5 rounded-full bg-primary-soft text-primary font-label text-xs font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-1"
                       >
                         <span className="material-symbols-outlined text-[16px]">schedule</span>
-                        <span>Notice dein</span>
+                        <span>Give Notice</span>
                       </button>
                     ) : (
                       <button
@@ -565,7 +565,7 @@ export function Tenants() {
         <div className="flex flex-col gap-3">
           {(!leaves.data || leaves.data.length === 0) && (
             <p className="bg-surface border border-line rounded-2xl p-6 text-center text-sm text-ink-2">
-              Koi chhutti ya leave pass pending nahi hai.
+              No leave passes pending approval.
             </p>
           )}
 
@@ -585,18 +585,18 @@ export function Tenants() {
                     ? 'bg-danger-soft text-on-danger-soft'
                     : 'bg-warning-soft text-on-warning-soft'
                 }`}>
-                  {l.parentStatus === 'approved' ? 'Parent: Manjoor ✓' : l.parentStatus === 'rejected' ? 'Parent: Aswikaar ✕' : 'Parent: Pending ⏳'}
+                  {l.parentStatus === 'approved' ? 'Parent: Approved ✓' : l.parentStatus === 'rejected' ? 'Parent: Rejected ✕' : 'Parent: Pending ⏳'}
                 </span>
               </header>
 
               <div className="bg-surface-2 rounded-xl p-3 text-xs flex flex-col gap-1.5">
                 <div className="flex justify-between">
                   <span className="text-ink-2">Dates:</span>
-                  <b className="text-ink tabular-nums">{fmtDate(l.startDate)} se {fmtDate(l.endDate)}</b>
+                  <b className="text-ink tabular-nums">{fmtDate(l.startDate)} to {fmtDate(l.endDate)}</b>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-ink-2">Destination:</span>
-                  <b className="text-ink">{l.destination || 'Ghar'}</b>
+                  <b className="text-ink">{l.destination || 'Home'}</b>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-ink-2">Reason:</span>
@@ -621,7 +621,7 @@ export function Tenants() {
                     }}
                     className="px-3 py-1 rounded-full bg-primary-soft text-primary font-semibold text-xs hover:opacity-90"
                   >
-                    Acknowledge Karein
+                    Acknowledge Pass
                   </button>
                 )}
               </footer>
@@ -672,7 +672,7 @@ export function Tenants() {
           onClose={() => setNoticeModalTenant(null)}
           onSuccess={() => {
             setNoticeModalTenant(null);
-            setMsg({ text: 'Notice record ho gaya. Bed par notice mark kar diya ✓' });
+            setMsg({ text: 'Notice recorded successfully. Bed marked on notice ✓' });
             reload();
             beds.reload();
           }}
@@ -746,9 +746,9 @@ export function QuickAllotModal({ beds = [], onClose, onSuccess }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return setErr('Student ka naam likhein');
-    if (phone.replace(/\D/g, '').length !== 10) return setErr('10-digit mobile number daalein');
-    if (!bedId) return setErr('Bed chuno');
+    if (!name.trim()) return setErr('Please enter student name');
+    if (phone.replace(/\D/g, '').length !== 10) return setErr('Please enter 10-digit mobile number');
+    if (!bedId) return setErr('Please select a bed');
 
     setBusy(true);
     setErr('');
@@ -782,7 +782,7 @@ export function QuickAllotModal({ beds = [], onClose, onSuccess }) {
             </span>
             <div>
               <h2 className="font-title text-base font-bold text-ink">Spot Allotment (Instant)</h2>
-              <small className="text-xs text-ink-2">Bacha aaya hai · 30 sec mein room allot karein</small>
+              <small className="text-xs text-ink-2">New student arrival · Allot bed in 30 seconds</small>
             </div>
           </div>
           <button type="button" onClick={onClose} className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink">
@@ -820,7 +820,7 @@ export function QuickAllotModal({ beds = [], onClose, onSuccess }) {
           <label className="flex flex-col gap-1">
             <span className="font-label text-xs font-semibold text-ink-2">Bed Allotment</span>
             {beds?.length === 0 ? (
-              <p className="text-xs text-danger font-semibold py-2">Koi vacant bed uplabdh nahi hai.</p>
+              <p className="text-xs text-danger font-semibold py-2">No vacant beds available.</p>
             ) : (
               <select
                 value={bedId}
@@ -838,7 +838,7 @@ export function QuickAllotModal({ beds = [], onClose, onSuccess }) {
 
           <div className="grid grid-cols-2 gap-2.5">
             <label className="flex flex-col gap-1">
-              <span className="font-label text-xs font-semibold text-ink-2">Rent / Mahina</span>
+              <span className="font-label text-xs font-semibold text-ink-2">Rent / Month</span>
               <input
                 type="number"
                 value={rent}
@@ -865,12 +865,12 @@ export function QuickAllotModal({ beds = [], onClose, onSuccess }) {
               onChange={(e) => setBookingAmount(e.target.value)}
               className="w-full px-3.5 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm tabular-nums focus:border-primary focus:outline-none"
             />
-            <small className="text-[11px] text-ink-2">Student is token amount se bhi bed lock kar sakta hai</small>
+            <small className="text-[11px] text-ink-2">Student can reserve and lock bed with this token amount</small>
           </label>
 
           <div className="bg-primary-soft/40 border border-primary-soft rounded-xl p-3 text-xs text-primary flex items-start gap-2">
             <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">info</span>
-            <span>Allot karte hi student ke WhatsApp pe link chala jayega jisme wo Aadhaar & Police verification bharega aur token/rent pay karega.</span>
+            <span>Upon allotment, an invite link will be sent to the student's WhatsApp for verification details and token/rent payment.</span>
           </div>
 
           <div className="flex gap-2.5 pt-2">
@@ -879,14 +879,14 @@ export function QuickAllotModal({ beds = [], onClose, onSuccess }) {
               onClick={onClose}
               className="w-1/3 py-2.5 rounded-full border border-line text-ink font-label text-xs font-semibold hover:bg-surface-2 transition-colors"
             >
-              Radd
+              Cancel
             </button>
             <button
               type="submit"
               disabled={busy || !beds?.length}
               className="w-2/3 py-2.5 rounded-full bg-primary text-on-primary font-label text-xs font-bold shadow-sm hover:opacity-95 disabled:opacity-50 transition-opacity flex items-center justify-center gap-1.5"
             >
-              {busy ? 'Allot ho raha...' : '⚡ Allot Karein & Invite Bhejein'}
+              {busy ? 'Allotting...' : '⚡ Allot Bed & Send Invite'}
             </button>
           </div>
         </form>
@@ -903,7 +903,7 @@ export function InviteSuccessModal({ data, onClose }) {
   const phone = tenant?.phone || '';
 
   const waMsg = encodeURIComponent(
-    `Namaste ${tenant?.name || 'Ji'}! Aapka PG (Room ${tenant?.room?.number || ''}, Bed ${tenant?.bed?.label || ''}) mein aapka bed reserve kar diya gaya hai.\n\nKripya is link par click karke apni Police Verification details bharein aur booking confirm karein:\n${inviteUrl}\n\nDhanyawad!`
+    `Hello ${tenant?.name || ''}! Your bed has been reserved at Your PG (Room ${tenant?.room?.number || ''}, Bed ${tenant?.bed?.label || ''}).\n\nPlease click this link to submit your verification details and confirm your booking:\n${inviteUrl}\n\nThank you!`
   );
   const waUrl = `https://wa.me/91${phone}?text=${waMsg}`;
 
@@ -924,9 +924,9 @@ export function InviteSuccessModal({ data, onClose }) {
           <div className="w-12 h-12 rounded-full bg-success-soft text-on-success-soft flex items-center justify-center">
             <span className="material-symbols-outlined text-2xl font-bold">check_circle</span>
           </div>
-          <h2 className="font-headline text-lg font-bold text-ink">Bed Spot Allot Ho Gaya!</h2>
+          <h2 className="font-headline text-lg font-bold text-ink">Bed Reserved Successfully!</h2>
           <p className="font-body text-xs text-ink-2">
-            <b>{tenant?.name}</b> ({phone}) ke liye bed reserve kar diya gaya hai.
+            Bed has been reserved for <b>{tenant?.name}</b> ({phone}).
           </p>
         </div>
 
@@ -971,7 +971,7 @@ export function InviteSuccessModal({ data, onClose }) {
             className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-[#25D366] text-white font-label text-xs font-bold shadow-sm hover:opacity-95 transition-opacity"
           >
             <span className="material-symbols-outlined text-[18px]">chat</span>
-            <span>WhatsApp Pe Invite Bhejo</span>
+            <span>Send Invite via WhatsApp</span>
           </a>
 
           <a
@@ -981,7 +981,7 @@ export function InviteSuccessModal({ data, onClose }) {
             className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-surface border border-line text-ink font-label text-xs font-semibold hover:bg-surface-2 transition-colors"
           >
             <span className="material-symbols-outlined text-[16px]">open_in_new</span>
-            <span>Link Direct Khol Kar Dekhein</span>
+            <span>Open Link Directly</span>
           </a>
 
           <button
@@ -989,7 +989,7 @@ export function InviteSuccessModal({ data, onClose }) {
             onClick={onClose}
             className="w-full py-2.5 rounded-full text-ink-2 font-label text-xs font-semibold hover:text-ink transition-colors"
           >
-            Band Karein
+            Close
           </button>
         </div>
       </div>
@@ -1019,7 +1019,7 @@ export function OfflinePaymentModal({ tenant, onClose, onSuccess }) {
           setSelectedPayId(tenantDues[0].id);
           setAmount(String(tenantDues[0].balanceRemaining));
         } else {
-          setErr('Is tenant ka koi due payment pending nahi hai.');
+          setErr('No pending dues found for this tenant.');
         }
       })
       .catch((e) => setErr(e.message))
@@ -1036,11 +1036,11 @@ export function OfflinePaymentModal({ tenant, onClose, onSuccess }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!selectedPayId) return setErr('Payment select karein');
+    if (!selectedPayId) return setErr('Please select a payment');
     const amt = Number(amount);
-    if (!amt || amt <= 0) return setErr('Sahi amount daalein');
+    if (!amt || amt <= 0) return setErr('Please enter a valid amount');
     if (activeDue && amt > activeDue.balanceRemaining) {
-      return setErr(`Amount baaki balance (${inr(activeDue.balanceRemaining)}) se zyada nahi ho sakti`);
+      return setErr(`Amount cannot exceed remaining balance (${inr(activeDue.balanceRemaining)})`);
     }
 
     setBusy(true);
@@ -1075,7 +1075,7 @@ export function OfflinePaymentModal({ tenant, onClose, onSuccess }) {
       <div className="w-full max-w-md bg-surface rounded-2xl p-6 shadow-xl flex flex-col gap-4 border border-line max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-line pb-3">
           <div>
-            <h2 className="font-title text-base font-bold text-ink">Kiraya Jama Karo (Offline)</h2>
+            <h2 className="font-title text-base font-bold text-ink">Record Offline Payment</h2>
             <small className="text-xs text-ink-2">Tenant: <b>{tenant.name}</b> (Room {tenant.room?.number || tenant.room})</small>
           </div>
           <button type="button" onClick={onClose} className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink">
@@ -1084,14 +1084,14 @@ export function OfflinePaymentModal({ tenant, onClose, onSuccess }) {
         </div>
 
         {loading ? (
-          <p className="text-center py-6 text-sm text-ink-2">Dues load ho rahe hain...</p>
+          <p className="text-center py-6 text-sm text-ink-2">Loading pending dues...</p>
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-4">
             {err && <p className="rounded-xl px-4 py-2.5 text-xs font-semibold bg-danger-soft text-on-danger-soft">{err}</p>}
 
             {dues.length > 0 && (
               <label className="flex flex-col gap-1.5">
-                <span className="font-label text-xs font-semibold text-ink-2">Pending Bill Chuno</span>
+                <span className="font-label text-xs font-semibold text-ink-2">Select Pending Bill</span>
                 <select
                   value={selectedPayId}
                   onChange={(e) => handleSelectPayment(e.target.value)}
@@ -1099,7 +1099,7 @@ export function OfflinePaymentModal({ tenant, onClose, onSuccess }) {
                 >
                   {dues.map((d) => (
                     <option key={d.id} value={d.id}>
-                      {monthName(d.month)} ({d.kind}) · Baaki: {inr(d.balanceRemaining)} / Total: {inr(d.total)}
+                      {monthName(d.month)} ({d.kind}) · Due: {inr(d.balanceRemaining)} / Total: {inr(d.total)}
                     </option>
                   ))}
                 </select>
@@ -1110,17 +1110,17 @@ export function OfflinePaymentModal({ tenant, onClose, onSuccess }) {
               <div className="bg-surface-2 border border-line rounded-xl p-3.5 flex justify-between items-center text-xs">
                 <div>
                   <span className="text-ink-2 block">Total Bill: <b>{inr(activeDue.total)}</b></span>
-                  <span className="text-success font-semibold block">Pehle Jama: {inr(activeDue.paidAmount)}</span>
+                  <span className="text-success font-semibold block">Paid Earlier: {inr(activeDue.paidAmount)}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-ink-2 block">Kul Baaki (Balance):</span>
+                  <span className="text-ink-2 block">Balance Remaining:</span>
                   <span className="text-base font-bold text-primary tabular-nums">{inr(activeDue.balanceRemaining)}</span>
                 </div>
               </div>
             )}
 
             <label className="flex flex-col gap-1.5">
-              <span className="font-label text-xs font-semibold text-ink-2">Kitna Paisa Jama Karwana Hai (Partial / Full)</span>
+              <span className="font-label text-xs font-semibold text-ink-2">Payment Amount to Collect (Partial / Full)</span>
               <input
                 type="number"
                 inputMode="numeric"
@@ -1137,7 +1137,7 @@ export function OfflinePaymentModal({ tenant, onClose, onSuccess }) {
               <div className="grid grid-cols-2 gap-2">
                 {[
                   ['cash', '💵 Cash'],
-                  ['upi_owner', '📱 UPI Malik Ko'],
+                  ['upi_owner', '📱 UPI to Owner'],
                   ['cheque', '🏦 Cheque'],
                   ['neft', '💻 NEFT / IMPS'],
                 ].map(([k, label]) => (
@@ -1174,7 +1174,7 @@ export function OfflinePaymentModal({ tenant, onClose, onSuccess }) {
               <span className="font-label text-xs font-semibold text-ink-2">Note (Optional)</span>
               <input
                 type="text"
-                placeholder="e.g. Papa ne cash diya / Part payment"
+                placeholder="e.g. Paid in cash / Installment 1"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 className="w-full px-3.5 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
@@ -1186,7 +1186,7 @@ export function OfflinePaymentModal({ tenant, onClose, onSuccess }) {
               disabled={busy || !selectedPayId || !amount}
               className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50 mt-2"
             >
-              {busy ? 'Save ho raha hai...' : `Payment Jama Karo (${inr(amount)})`}
+              {busy ? 'Recording...' : `Record Payment (${inr(amount)})`}
             </button>
           </form>
         )}
@@ -1205,7 +1205,7 @@ export function NoticeModal({ tenant, onClose, onSuccess }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!vacatingDate) return setErr('Vacating date chuno');
+    if (!vacatingDate) return setErr('Please select a vacating date');
     setBusy(true);
     setErr('');
     try {
@@ -1226,7 +1226,7 @@ export function NoticeModal({ tenant, onClose, onSuccess }) {
       <div className="w-full max-w-md bg-surface rounded-2xl p-6 shadow-xl flex flex-col gap-4 border border-line" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-line pb-3">
           <div>
-            <h2 className="font-title text-base font-bold text-ink">Room Chhodne Ka Notice</h2>
+            <h2 className="font-title text-base font-bold text-ink">Room Vacating Notice</h2>
             <small className="text-xs text-ink-2">Tenant: <b>{tenant.name}</b> (Bed {tenant.bed?.label || tenant.bed})</small>
           </div>
           <button type="button" onClick={onClose} className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink">
@@ -1238,7 +1238,7 @@ export function NoticeModal({ tenant, onClose, onSuccess }) {
 
         <form onSubmit={submit} className="flex flex-col gap-4">
           <label className="flex flex-col gap-1.5">
-            <span className="font-label text-xs font-semibold text-ink-2">Kab Room Chhodenge (Vacating Date)</span>
+            <span className="font-label text-xs font-semibold text-ink-2">Expected Move-out Date (Vacating Date)</span>
             <input
               type="date"
               required
@@ -1246,21 +1246,21 @@ export function NoticeModal({ tenant, onClose, onSuccess }) {
               onChange={(e) => setVacatingDate(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
             />
-            <small className="text-[11px] text-ink-2">Standard notice period 30 din ka hota hai.</small>
+            <small className="text-[11px] text-ink-2">Standard notice period is 30 days.</small>
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="font-label text-xs font-semibold text-ink-2">Reason (Kyun chhod rahe hain)</span>
+            <span className="font-label text-xs font-semibold text-ink-2">Reason for Leaving</span>
             <select
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
             >
-              <option value="personal">Ghar wapas / Personal</option>
-              <option value="job">Nayi job / Office relocation</option>
-              <option value="exam">Exams khatam / College pura</option>
-              <option value="budget">Budget / Doosra room</option>
-              <option value="other">Koi aur reason</option>
+              <option value="personal">Moving back home / Personal</option>
+              <option value="job">New job / Office relocation</option>
+              <option value="exam">Graduation / Course finished</option>
+              <option value="budget">Budget / Shifting</option>
+              <option value="other">Other reason</option>
             </select>
           </label>
 
@@ -1268,10 +1268,10 @@ export function NoticeModal({ tenant, onClose, onSuccess }) {
             <span className="font-label text-xs font-semibold text-ink-2">Remarks / Notes</span>
             <input
               type="text"
-              placeholder="e.g. 15 tarikh ko train hai, bed inspect kar liya"
+              placeholder="e.g. Flight booked on 15th, room inspection done"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
+              className="w-full px-3.5 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
             />
           </label>
 
@@ -1280,7 +1280,7 @@ export function NoticeModal({ tenant, onClose, onSuccess }) {
             disabled={busy || !vacatingDate}
             className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50 mt-1"
           >
-            {busy ? 'Save ho raha hai...' : 'Notice Confirm Karo'}
+            {busy ? 'Saving...' : 'Confirm Vacating Notice'}
           </button>
         </form>
       </div>
@@ -1324,7 +1324,7 @@ export function CheckoutSettlementModal({ tenant, onClose, onSuccess }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!window.confirm(`${tenant.name} ka checkout settlement confirm karein? Bed khaali ho jayega.`)) return;
+    if (!window.confirm(`Confirm checkout settlement for ${tenant.name}? The bed will be marked vacant.`)) return;
 
     setBusy(true);
     setErr('');
@@ -1364,7 +1364,7 @@ export function CheckoutSettlementModal({ tenant, onClose, onSuccess }) {
         </div>
 
         {loading ? (
-          <p className="text-center py-6 text-sm text-ink-2">Settlement hisaab calculate ho raha hai...</p>
+          <p className="text-center py-6 text-sm text-ink-2">Calculating settlement statement...</p>
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-4">
             {err && <p className="rounded-xl px-4 py-2.5 text-xs font-semibold bg-danger-soft text-on-danger-soft">{err}</p>}
@@ -1384,7 +1384,7 @@ export function CheckoutSettlementModal({ tenant, onClose, onSuccess }) {
             {/* Pending Dues details if any */}
             {preview?.unpaidPayments?.length > 0 && (
               <div className="bg-danger-soft/20 border border-danger-soft rounded-xl p-3 text-xs flex flex-col gap-1">
-                <b className="text-ink">Baaki bills (jo deposit se adjust honge):</b>
+                <b className="text-ink">Unpaid bills (adjusted from deposit):</b>
                 {preview.unpaidPayments.map((p) => (
                   <div key={p.id} className="flex justify-between text-ink-2">
                     <span>{monthName(p.month)} ({p.kind})</span>
@@ -1398,8 +1398,8 @@ export function CheckoutSettlementModal({ tenant, onClose, onSuccess }) {
             <div className="flex flex-col gap-2 border-t border-line pt-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-title text-sm font-bold text-ink">Deductions (Katai)</h3>
-                  <p className="text-xs text-ink-2">Painting, Safai, Damage, Key loss</p>
+                  <h3 className="font-title text-sm font-bold text-ink">Deductions</h3>
+                  <p className="text-xs text-ink-2">Deep cleaning, painting, repair, shortfall</p>
                 </div>
                 <button
                   type="button"
@@ -1446,7 +1446,7 @@ export function CheckoutSettlementModal({ tenant, onClose, onSuccess }) {
                       className="text-xs bg-surface border border-line rounded-lg px-2 py-1.5 focus:outline-none"
                     >
                       <option value="painting">Painting 🎨</option>
-                      <option value="cleaning">Safai 🧹</option>
+                      <option value="cleaning">Cleaning 🧹</option>
                       <option value="damage">Damage 🛠️</option>
                       <option value="notice_shortfall">Short Notice ⏱️</option>
                       <option value="other">Other 🔧</option>
@@ -1501,7 +1501,7 @@ export function CheckoutSettlementModal({ tenant, onClose, onSuccess }) {
               </div>
               <div className="border-t border-line pt-2 flex justify-between items-center">
                 <b className="text-sm font-bold text-ink">
-                  {netRefundable >= 0 ? 'Tenant Ko Wapas (Net Refund):' : 'Tenant Se Aur Lena Hai:'}
+                  {netRefundable >= 0 ? 'Net Refund to Tenant:' : 'Extra Amount Due from Tenant:'}
                 </b>
                 <b className={`text-xl font-bold tabular-nums ${netRefundable >= 0 ? 'text-success' : 'text-danger'}`}>
                   {inr(Math.abs(netRefundable))}
@@ -1561,7 +1561,7 @@ export function CheckoutSettlementModal({ tenant, onClose, onSuccess }) {
               disabled={busy}
               className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50 mt-2"
             >
-              {busy ? 'Settle ho raha hai...' : 'Settle & Checkout Confirm Karo'}
+              {busy ? 'Processing...' : 'Confirm Settlement & Checkout'}
             </button>
           </form>
         )}
@@ -1587,13 +1587,13 @@ export function ReceiptVoucherModal({ data, onClose }) {
 
         <div className="text-xs text-ink-2 flex flex-col gap-1">
           <p>Tenant: <b className="text-ink">{tenant.name}</b> · Room: <b className="text-ink">{tenant.room?.number || tenant.room}</b></p>
-          <p>Tareekh: <b className="text-ink">{fmtDate(transaction.paidAt)} {fmtTime(transaction.paidAt)}</b></p>
+          <p>Date: <b className="text-ink">{fmtDate(transaction.paidAt)} {fmtTime(transaction.paidAt)}</b></p>
           <p>Method: <b className="text-ink capitalize">{transaction.method}</b> {transaction.reference ? `(${transaction.reference})` : ''}</p>
         </div>
 
         <div className="bg-surface-2 rounded-xl p-4 flex flex-col gap-2 border border-line">
           <div className="flex justify-between items-center text-sm">
-            <span>Jama Kiya (Amount Paid):</span>
+            <span>Amount Paid:</span>
             <b className="text-lg font-bold text-primary tabular-nums">{inr(transaction.amount)}</b>
           </div>
           <div className="flex justify-between items-center text-xs text-ink-2 border-t border-line pt-2">
@@ -1601,7 +1601,7 @@ export function ReceiptVoucherModal({ data, onClose }) {
             <span className="tabular-nums font-semibold">{inr(payment.total)}</span>
           </div>
           <div className="flex justify-between items-center text-xs">
-            <span>Baaki Balance (Remaining):</span>
+            <span>Remaining Balance:</span>
             <b className={`tabular-nums ${balanceRemaining > 0 ? 'text-warning font-bold' : 'text-success font-semibold'}`}>
               {inr(balanceRemaining)}
             </b>
@@ -1622,7 +1622,7 @@ export function ReceiptVoucherModal({ data, onClose }) {
             onClick={onClose}
             className="flex-1 inline-flex items-center justify-center px-4 py-2.5 rounded-full bg-surface text-ink border border-line text-xs font-semibold hover:bg-surface-2"
           >
-            Band karo
+            Close
           </button>
         </div>
       </div>
@@ -1646,7 +1646,7 @@ export function SettlementVoucherModal({ data, onClose }) {
         </div>
 
         <div className="text-xs text-ink-2 flex flex-col gap-1">
-          <p>Tareekh: <b className="text-ink">{fmtDate(s.checkoutDate)}</b></p>
+          <p>Date: <b className="text-ink">{fmtDate(s.checkoutDate)}</b></p>
           <p>Payment Mode: <b className="text-ink capitalize">{s.refundMethod}</b> {s.refundRef ? `(${s.refundRef})` : ''}</p>
         </div>
 
@@ -1727,21 +1727,21 @@ export function MenuEdit() {
   }, [date, week.data]);
 
   const save = async () => {
-    try { await api(`/manager/menu/${date}`, { method: 'PUT', body: f }); setMsg({ text: 'Menu save ho gaya ✓' }); week.reload(); }
+    try { await api(`/manager/menu/${date}`, { method: 'PUT', body: f }); setMsg({ text: 'Menu saved successfully ✓' }); week.reload(); }
     catch (e) { setMsg({ text: e.message, bad: true }); }
   };
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-0.5">
-        <h1 className="font-headline text-2xl font-bold text-ink">Khaane ka menu</h1>
-        <p className="font-body text-sm text-ink-2">Tenants ko unke app mein yahi dikhega</p>
+        <h1 className="font-headline text-2xl font-bold text-ink">Food Menu</h1>
+        <p className="font-body text-sm text-ink-2">This menu will appear in all tenants' app</p>
       </div>
 
       {count.data && (
         <div className="bg-surface border border-line rounded-2xl p-4 shadow-sm flex items-center justify-between text-sm">
-          <span>Aaj khaana kha rahe hain:</span>
-          <b>{count.data.eating} / {count.data.total} log ({count.data.skipped} skipped)</b>
+          <span>Dining today:</span>
+          <b>{count.data.eating} / {count.data.total} tenants ({count.data.skipped} skipped)</b>
         </div>
       )}
 
@@ -1767,16 +1767,16 @@ export function MenuEdit() {
       {/* Meal Inputs */}
       <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm flex flex-col gap-3.5">
         {[
-          ['nashta', 'Nashta (Breakfast)', '🌅'],
-          ['lunch', 'Lunch (Dopehar)', '☀️'],
-          ['dinner', 'Dinner (Raat)', '🌙'],
+          ['nashta', 'Breakfast', '🌅'],
+          ['lunch', 'Lunch', '☀️'],
+          ['dinner', 'Dinner', '🌙'],
         ].map(([k, l, icon]) => (
           <label key={k} className="flex flex-col gap-1.5">
             <span className="font-label text-xs font-semibold text-ink-2">{icon} {l}</span>
             <input
               value={f[k]}
               maxLength={200}
-              placeholder="Menu item likhein..."
+              placeholder="Enter menu items..."
               onChange={(e) => setF({ ...f, [k]: e.target.value })}
               className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
             />
@@ -1795,7 +1795,7 @@ export function MenuEdit() {
         onClick={save}
         className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity"
       >
-        Menu save karo
+        Save Menu
       </button>
     </div>
   );

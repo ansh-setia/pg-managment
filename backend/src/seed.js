@@ -22,8 +22,8 @@ await Setting.create({
 });
 
 await User.create([
-  { phone: '9000000001', name: 'Malik Sahab', role: 'malik' },
-  { phone: '9000000002', name: 'Manager Bhaiya', role: 'manager' },
+  { phone: '9000000001', name: 'Property Owner', role: 'malik' },
+  { phone: '9000000002', name: 'Property Manager', role: 'manager' },
 ]);
 
 const blockA = await Block.create({ name: 'Block A (Boys)', description: 'Main Wing' });

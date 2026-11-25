@@ -33,14 +33,14 @@ app.use('/api/auth', authRoutes);
 app.use('/api/public', publicRoutes);
 
 app.post('/api/upload', requireAuth, requireRole('tenant', 'manager', 'malik'), upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'File nahi mili' });
+  if (!req.file) return res.status(400).json({ error: 'File not provided' });
   res.status(201).json({ file: req.file.filename });
 });
 
 // Only logged-in users can read uploads (ID proofs, photos). Names are random UUIDs.
 app.get('/api/files/:name', requireAuth, (req, res) => {
   const file = path.join(uploadDir, path.basename(req.params.name));
-  if (!fs.existsSync(file)) return res.status(404).json({ error: 'File nahi mili' });
+  if (!fs.existsSync(file)) return res.status(404).json({ error: 'File not found' });
   res.sendFile(file);
 });
 
@@ -56,19 +56,19 @@ if (fs.existsSync(distDir)) {
   });
 }
 
-app.use('/api', (req, res) => res.status(404).json({ error: 'Ye API route nahi mila' }));
+app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found' }));
 app.use((req, res) => {
   if (fs.existsSync(path.join(distDir, 'index.html'))) {
     return res.sendFile(path.join(distDir, 'index.html'));
   }
-  res.status(404).json({ error: 'Ye route nahi mila' });
+  res.status(404).json({ error: 'Route not found' });
 });
 // eslint-disable-next-line no-unused-vars
 app.use((err, _req, res, _next) => {
   if (err.name === 'MulterError' || err.status) return res.status(err.status || 400).json({ error: err.message });
   if (err.message?.startsWith('Sirf JPG')) return res.status(400).json({ error: err.message });
   console.error(err);
-  res.status(500).json({ error: 'Server mein gadbad hui, thodi der baad try karo' });
+  res.status(500).json({ error: 'An unexpected server error occurred, please try again shortly' });
 });
 
 mongoose.connect(config.mongoUri).then(() => {

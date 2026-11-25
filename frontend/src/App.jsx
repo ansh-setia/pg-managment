@@ -14,26 +14,26 @@ export const useAuth = () => useContext(Auth);
 
 const TABS = {
   tenant: [
-    ['/kiraya', 'account_balance_wallet', 'Kiraya'],
-    ['/bill', 'bolt', 'Bill'],
-    ['/complaint', 'build', 'Complaint'],
-    ['/menu', 'restaurant', 'Menu'],
-    ['/leave', 'event_available', 'Chhutti'],
+    ['/kiraya', 'account_balance_wallet', 'Rent'],
+    ['/bill', 'bolt', 'Electricity'],
+    ['/complaint', 'build', 'Complaints'],
+    ['/menu', 'restaurant', 'Food Menu'],
+    ['/leave', 'event_available', 'Leaves & Passes'],
   ],
   manager: [
-    ['/meter', 'bolt', 'Meter'],
+    ['/meter', 'bolt', 'Meter Readings'],
     ['/complaints', 'build', 'Complaints'],
-    ['/tenants', 'group', 'Tenants'],
-    ['/menu', 'restaurant', 'Menu'],
+    ['/tenants', 'group', 'Tenants & Passes'],
+    ['/menu', 'restaurant', 'Food Menu'],
   ],
   malik: [
-    ['/hisaab', 'account_balance_wallet', 'Hisaab'],
-    ['/beds', 'bed', 'Beds & Rooms'],
+    ['/hisaab', 'account_balance_wallet', 'Finances'],
+    ['/beds', 'bed', 'Rooms & Beds'],
     ['/tenants', 'group', 'Tenants'],
     ['/settings', 'settings', 'Settings'],
   ],
 };
-const ROLE_LABEL = { tenant: 'Tenant', manager: 'Manager', malik: 'Malik' };
+const ROLE_LABEL = { tenant: 'Tenant', manager: 'Manager', malik: 'Owner' };
 
 function Shell() {
   const { user, logout } = useAuth();
@@ -56,7 +56,7 @@ function Shell() {
               {ROLE_LABEL[user.role]} {user.tenant ? `· Room ${user.tenant.room}` : ''}
             </span>
             <span className="font-title text-base font-bold text-ink leading-tight">
-              {user.name || 'Aapka PG'}
+              {user.name || 'Your PG'}
             </span>
           </div>
         </div>
@@ -119,7 +119,7 @@ export default function App() {
   const login = async () => setUser(await api('/auth/me'));
   const logout = () => { setToken(null); setUser(null); };
 
-  if (!ready) return <p className="muted pad">Load ho raha hai…</p>;
+  if (!ready) return <p className="muted pad">Loading…</p>;
 
   return (
     <Auth.Provider value={{ user, logout }}>
