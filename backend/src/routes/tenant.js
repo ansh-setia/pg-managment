@@ -262,12 +262,16 @@ r.get('/menu', wrap(async (req, res) => {
   ]);
   res.json({
     today: todayStr(),
-    days: dates.map((d) => ({
-      date: d,
-      ...(days.find((x) => x.date === d)?.toObject() || {}),
-      skipped: skips.some((s) => s.date === d),
-      ratings: Object.fromEntries(ratings.filter((x) => x.date === d).map((x) => [x.meal, x.stars])),
-    })),
+    days: dates.map((d) => {
+      const skipObj = skips.find((s) => s.date === d);
+      return {
+        date: d,
+        ...(days.find((x) => x.date === d)?.toObject() || {}),
+        skipped: !!skipObj,
+        skipReason: skipObj?.reason || null,
+        ratings: Object.fromEntries(ratings.filter((x) => x.date === d).map((x) => [x.meal, x.stars])),
+      };
+    }),
   });
 }));
 
@@ -275,8 +279,15 @@ r.post('/menu/skip', wrap(async (req, res) => {
   const t = await me(req);
   const { date, skip } = req.body;
   if (!isDate(date) || date < todayStr()) throw new HttpError(400, 'Cannot skip past dates');
-  if (skip === false) await FoodSkip.deleteOne({ tenant: t._id, date });
-  else await FoodSkip.updateOne({ tenant: t._id, date }, { $setOnInsert: { date } }, { upsert: true });
+  if (skip === false) {
+    const existing = await FoodSkip.findOne({ tenant: t._id, date });
+    if (existing?.reason === 'leave') {
+      throw new HttpError(400, 'Food is automatically skipped because you are on approved leave for this date.');
+    }
+    await FoodSkip.deleteOne({ tenant: t._id, date });
+  } else {
+    await FoodSkip.updateOne({ tenant: t._id, date }, { $set: { tenant: t._id, date, reason: 'manual' } }, { upsert: true });
+  }
   res.json({ ok: true });
 }));
 

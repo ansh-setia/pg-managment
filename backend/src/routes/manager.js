@@ -181,6 +181,29 @@ r.get('/leaves', wrap(async (_req, res) => {
   res.json(list);
 }));
 
+export async function autoSkipFoodForLeave(leave) {
+  const sStr = typeof leave.startDate === 'string' ? leave.startDate.slice(0, 10) : new Date(leave.startDate).toISOString().slice(0, 10);
+  const eStr = typeof leave.endDate === 'string' ? leave.endDate.slice(0, 10) : new Date(leave.endDate).toISOString().slice(0, 10);
+
+  const dates = [];
+  let cur = new Date(sStr + 'T00:00:00Z');
+  const stop = new Date(eStr + 'T00:00:00Z');
+  while (cur <= stop) {
+    dates.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+
+  const tenantId = leave.tenant?._id || leave.tenant;
+  for (const date of dates) {
+    await FoodSkip.updateOne(
+      { tenant: tenantId, date },
+      { $set: { tenant: tenantId, date, reason: 'leave', leave: leave._id } },
+      { upsert: true }
+    );
+  }
+  return dates;
+}
+
 r.post('/leaves/:id/decide', wrap(async (req, res) => {
   const { action, remarks = '' } = req.body;
   if (!['approved', 'denied'].includes(action)) {
@@ -195,6 +218,13 @@ r.post('/leaves/:id/decide', wrap(async (req, res) => {
   l.managerRemarks = String(remarks || '').trim();
   await l.save();
 
+  // Automatic food skipping when leave is approved
+  if (action === 'approved') {
+    await autoSkipFoodForLeave(l);
+  } else if (action === 'denied') {
+    await FoodSkip.deleteMany({ leave: l._id });
+  }
+
   // Notify student via WhatsApp
   if (l.tenant?.phone) {
     const sDate = new Date(l.startDate).toLocaleDateString('en-IN');
@@ -204,7 +234,7 @@ r.post('/leaves/:id/decide', wrap(async (req, res) => {
         name: l.tenant.name,
         dates: `${sDate} to ${eDate}`,
         destination: l.destination,
-        remarks: l.managerRemarks || 'Leave pass approved by manager',
+        remarks: l.managerRemarks || 'Leave pass approved by manager (Food auto-skipped)',
       });
     } else {
       await sendWhatsApp(l.tenant.phone, 'leave_manager_denied', {
@@ -224,6 +254,7 @@ r.patch('/leaves/:id/acknowledge', wrap(async (req, res) => {
   l.managerStatus = 'approved';
   l.managerActionAt = new Date();
   await l.save();
+  await autoSkipFoodForLeave(l);
   res.json({ ok: true, leave: l });
 }));
 
@@ -516,8 +547,20 @@ r.put('/menu/:date', wrap(async (req, res) => {
 
 r.get('/food-count', wrap(async (req, res) => {
   const date = isDate(req.query.date) ? req.query.date : todayStr();
-  const [skipped, total] = await Promise.all([FoodSkip.countDocuments({ date }), Tenant.countDocuments({ status: { $in: ['active', 'notice'] } })]);
-  res.json({ date, skipped, eating: Math.max(0, total - skipped), total });
+  const [skips, total] = await Promise.all([
+    FoodSkip.find({ date }).populate({ path: 'tenant', populate: { path: 'room bed' } }),
+    Tenant.countDocuments({ status: { $in: ['active', 'notice'] } })
+  ]);
+  const skipped = skips.length;
+  const leaveSkips = skips.filter((s) => s.reason === 'leave').length;
+  res.json({
+    date,
+    skipped,
+    eating: Math.max(0, total - skipped),
+    total,
+    leaveSkips,
+    manualSkips: skipped - leaveSkips,
+  });
 }));
 
 export default r;

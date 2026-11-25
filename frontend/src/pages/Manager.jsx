@@ -1882,10 +1882,10 @@ export function SettlementVoucherModal({ data, onClose }) {
 
 // ---- Menu editor ----
 export function MenuEdit() {
-  const week = useLoad(() => api('/manager/menu'));
-  const count = useLoad(() => api('/manager/food-count'));
   const today = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
   const [date, setDate] = useState(today);
+  const week = useLoad(() => api('/manager/menu'));
+  const count = useLoad(() => api(`/manager/food-count?date=${date}`), [date]);
   const [f, setF] = useState({ nashta: '', lunch: '', dinner: '' });
   const [msg, setMsg] = useState({ text: '' });
   const days = Array.from({ length: 7 }, (_, i) => new Date(new Date(today).getTime() + i * 86400000).toISOString().slice(0, 10));
@@ -1908,9 +1908,17 @@ export function MenuEdit() {
       </div>
 
       {count.data && (
-        <div className="bg-surface border border-line rounded-2xl p-4 shadow-sm flex items-center justify-between text-sm">
-          <span>Dining today:</span>
-          <b>{count.data.eating} / {count.data.total} tenants ({count.data.skipped} skipped)</b>
+        <div className="bg-surface border border-line rounded-2xl p-4 shadow-sm flex flex-col gap-2 text-sm">
+          <div className="flex items-center justify-between">
+            <span>Dining on {date === today ? 'today' : fmtDate(date)}:</span>
+            <b>{count.data.eating} / {count.data.total} tenants ({count.data.skipped} skipped)</b>
+          </div>
+          {count.data.leaveSkips > 0 && (
+            <div className="text-xs text-primary font-medium flex items-center gap-1.5 pt-1.5 border-t border-line/60">
+              <span className="material-symbols-outlined text-[16px]">flight_takeoff</span>
+              <span>{count.data.leaveSkips} tenant{count.data.leaveSkips > 1 ? 's' : ''} auto-skipped due to approved leave</span>
+            </div>
+          )}
         </div>
       )}
 

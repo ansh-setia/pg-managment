@@ -609,24 +609,31 @@ export function Menu() {
       </div>
 
       {date >= data.today && (
-        <button
-          type="button"
-          onClick={() => act(() => api('/tenant/menu/skip', { method: 'POST', body: { date, skip: !day.skipped } }))}
-          className={`w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full font-label text-sm font-bold shadow-sm transition-all ${
-            day.skipped
-              ? 'bg-surface text-ink border border-line hover:bg-surface-2'
-              : 'bg-ink text-on-primary hover:opacity-95'
-          }`}
-        >
-          {day.skipped
-            ? 'Opt back in (cancel skip)'
-            : date === data.today
-            ? "Skip Today's Meal"
-            : 'Skip Meal for this Date'}
-        </button>
+        day.skipReason === 'leave' ? (
+          <div className="rounded-xl p-3 text-xs font-semibold bg-primary-soft text-primary text-center flex items-center justify-center gap-1.5">
+            <span className="material-symbols-outlined text-[16px]">flight_takeoff</span>
+            <span>Food is automatically skipped (On Approved Leave Pass)</span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => act(() => api('/tenant/menu/skip', { method: 'POST', body: { date, skip: !day.skipped } }))}
+            className={`w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full font-label text-sm font-bold shadow-sm transition-all ${
+              day.skipped
+                ? 'bg-surface text-ink border border-line hover:bg-surface-2'
+                : 'bg-ink text-on-primary hover:opacity-95'
+            }`}
+          >
+            {day.skipped
+              ? 'Opt back in (cancel skip)'
+              : date === data.today
+              ? "Skip Today's Meal"
+              : 'Skip Meal for this Date'}
+          </button>
+        )
       )}
 
-      {day.skipped && (
+      {day.skipped && day.skipReason !== 'leave' && (
         <p className="rounded-xl p-3 text-xs font-semibold bg-success-soft text-on-success-soft text-center">
           ✓ Kitchen staff notified (Meal Skipped)
         </p>

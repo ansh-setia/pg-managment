@@ -191,7 +191,12 @@ export const MenuDay = mongoose.model('MenuDay', new Schema({
   dinner: String,
 }));
 
-const skipSchema = new Schema({ tenant: ref('Tenant'), date: String });
+const skipSchema = new Schema({
+  tenant: ref('Tenant'),
+  date: String,
+  reason: { type: String, default: 'manual' }, // 'manual' | 'leave'
+  leave: ref('Leave'),
+}, { timestamps: true });
 skipSchema.index({ tenant: 1, date: 1 }, { unique: true });
 export const FoodSkip = mongoose.model('FoodSkip', skipSchema);
 
