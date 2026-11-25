@@ -99,6 +99,136 @@ r.post('/blocks', wrap(async (req, res) => {
   res.status(201).json(block);
 }));
 
+export function generateRoomNumber(prefix, floor, roomIndex) {
+  const p = (prefix || '').trim();
+  const pad = String(roomIndex).padStart(2, '0');
+  if (floor === 0) {
+    return `${p}0${pad}`;
+  }
+  return `${p}${floor}${pad}`;
+}
+
+r.post('/blocks/bulk', wrap(async (req, res) => {
+  const { name, description = '', prefix, defaultBeds = 2, bedRent, initialReading = 0, floors = [] } = req.body;
+  const blockName = String(name || '').trim();
+  if (!blockName) throw new HttpError(400, 'Block name is required');
+
+  const bedsPerRoom = Number(defaultBeds);
+  if (!bedsPerRoom || bedsPerRoom < 1 || bedsPerRoom > 15) {
+    throw new HttpError(400, 'Default beds per room must be between 1 and 15');
+  }
+
+  if (!Array.isArray(floors) || floors.length === 0) {
+    throw new HttpError(400, 'At least one floor configuration is required');
+  }
+
+  // Validate floor counts
+  for (const fl of floors) {
+    const rCount = Number(fl.rooms);
+    if (!rCount || rCount < 1 || rCount > 100) {
+      throw new HttpError(400, `Invalid room count for Floor ${fl.floor ?? 'unknown'}. Must be between 1 and 100.`);
+    }
+  }
+
+  // Check unique block name
+  const existingBlock = await Block.findOne({ name: new RegExp(`^${blockName}$`, 'i') });
+  if (existingBlock) throw new HttpError(409, `A block named "${blockName}" already exists`);
+
+  // Compute prefix
+  let cleanPrefix = String(prefix || '').trim();
+  if (!cleanPrefix) {
+    cleanPrefix = blockName.replace(/^Block\s+/i, '').replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase() || 'A';
+  }
+
+  // Determine rent
+  const settings = await getSettings();
+  const tier = settings.sharingDefaults?.find((s) => s.sharingType === bedsPerRoom);
+  const finalRent = Number(bedRent) || tier?.rent || (bedsPerRoom === 1 ? 12000 : bedsPerRoom === 2 ? 7500 : bedsPerRoom === 3 ? 6000 : 5000);
+
+  // Generate room numbers and check collisions
+  const roomDefs = [];
+  const roomNumbers = [];
+  for (const fl of floors) {
+    const floorNum = Number(fl.floor ?? 0);
+    const count = Number(fl.rooms);
+    for (let rIdx = 1; rIdx <= count; rIdx++) {
+      const roomNo = generateRoomNumber(cleanPrefix, floorNum, rIdx);
+      roomNumbers.push(roomNo);
+      roomDefs.push({
+        number: roomNo,
+        floor: floorNum,
+        sharingType: bedsPerRoom,
+        initialReading: Number(initialReading || 0),
+      });
+    }
+  }
+
+  // Check duplicates in payload
+  const uniqueInPayload = new Set(roomNumbers);
+  if (uniqueInPayload.size !== roomNumbers.length) {
+    throw new HttpError(400, 'Generated room numbers contain duplicates. Check floor numbers.');
+  }
+
+  // Check collisions in database
+  const conflicts = await Room.find({ number: { $in: roomNumbers } }).populate('block');
+  if (conflicts.length > 0) {
+    const sample = conflicts.slice(0, 3).map((c) => `Room ${c.number} (${c.block?.name || 'existing block'})`).join(', ');
+    throw new HttpError(409, `Room numbers already exist in PG: ${sample}. Please choose a different block name or prefix.`);
+  }
+
+  // Atomic creation with rollback guarantee
+  const block = await Block.create({
+    name: blockName,
+    description: String(description || '').trim(),
+  });
+
+  let createdRoomIds = [];
+  try {
+    const roomsToInsert = roomDefs.map((rd) => ({
+      block: block._id,
+      number: rd.number,
+      floor: rd.floor,
+      sharingType: rd.sharingType,
+      initialReading: rd.initialReading,
+    }));
+    const createdRooms = await Room.insertMany(roomsToInsert);
+    createdRoomIds = createdRooms.map((r) => r._id);
+
+    const bedsToInsert = [];
+    const now = new Date();
+    for (const rm of createdRooms) {
+      for (let b = 1; b <= rm.sharingType; b++) {
+        bedsToInsert.push({
+          room: rm._id,
+          label: `${rm.number}-${b}`,
+          rent: finalRent,
+          status: 'vacant',
+          vacantSince: now,
+        });
+      }
+    }
+    const createdBeds = await Bed.insertMany(bedsToInsert);
+
+    res.status(201).json({
+      ok: true,
+      block,
+      stats: {
+        floors: floors.length,
+        rooms: createdRooms.length,
+        beds: createdBeds.length,
+      },
+    });
+  } catch (err) {
+    // Rollback completely
+    if (createdRoomIds.length > 0) {
+      await Bed.deleteMany({ room: { $in: createdRoomIds } });
+      await Room.deleteMany({ _id: { $in: createdRoomIds } });
+    }
+    await Block.findByIdAndDelete(block._id);
+    throw err;
+  }
+}));
+
 r.delete('/blocks/:id', wrap(async (req, res) => {
   const hasRooms = await Room.exists({ block: req.params.id });
   if (hasRooms) throw new HttpError(400, 'This block still contains rooms. Please delete or move them first.');

@@ -188,6 +188,456 @@ export function Hisaab() {
   );
 }
 
+const FLOOR_NAMES = [
+  'Ground Floor',
+  'First Floor',
+  'Second Floor',
+  'Third Floor',
+  'Fourth Floor',
+  'Fifth Floor',
+  'Sixth Floor',
+  'Seventh Floor',
+  'Eighth Floor',
+  'Ninth Floor',
+  'Tenth Floor',
+  'Eleventh Floor',
+  'Twelfth Floor',
+  'Thirteenth Floor',
+  'Fourteenth Floor',
+  'Fifteenth Floor',
+  'Sixteenth Floor',
+  'Seventeenth Floor',
+  'Eighteenth Floor',
+  'Nineteenth Floor',
+  'Twentieth Floor',
+];
+
+function getFloorLabel(i) {
+  if (i === 0) return 'Ground Floor';
+  if (i < FLOOR_NAMES.length) return FLOOR_NAMES[i];
+  return `Floor ${i}`;
+}
+
+function getSampleRoom(prefix, floor, idx) {
+  const p = (prefix || '').trim();
+  const pad = String(idx).padStart(2, '0');
+  if (floor === 0) return `${p}0${pad}`;
+  return `${p}${floor}${pad}`;
+}
+
+export function BulkBlockModal({ isOpen, onClose, onSuccess, sharingDefaults = [] }) {
+  if (!isOpen) return null;
+
+  const [blockName, setBlockName] = useState('');
+  const [prefix, setPrefix] = useState('');
+  const [prefixEdited, setPrefixEdited] = useState(false);
+  const [numFloors, setNumFloors] = useState(4);
+  const [groundRooms, setGroundRooms] = useState(8);
+  const [defaultBeds, setDefaultBeds] = useState(2);
+  const [bedRent, setBedRent] = useState(7500);
+  const [initialReading, setInitialReading] = useState(0);
+  const [sameForAll, setSameForAll] = useState(true);
+  const [floors, setFloors] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  // Auto-fill rent from sharingDefaults
+  useEffect(() => {
+    const tier = sharingDefaults.find((d) => d.sharingType === Number(defaultBeds));
+    if (tier?.rent) {
+      setBedRent(tier.rent);
+    } else {
+      setBedRent(defaultBeds === 1 ? 12000 : defaultBeds === 2 ? 7500 : defaultBeds === 3 ? 6000 : 5000);
+    }
+  }, [defaultBeds, sharingDefaults]);
+
+  // Derive room prefix from block name
+  useEffect(() => {
+    if (!prefixEdited) {
+      const clean = blockName.trim().replace(/^Block\s+/i, '').replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase();
+      setPrefix(clean || (blockName ? blockName.slice(0, 1).toUpperCase() : 'A'));
+    }
+  }, [blockName, prefixEdited]);
+
+  // Sync floors whenever numFloors, groundRooms, or sameForAll changes
+  useEffect(() => {
+    const count = Math.max(1, Math.min(20, Number(numFloors) || 1));
+    const gRooms = Math.max(1, Math.min(100, Number(groundRooms) || 1));
+
+    setFloors((prev) => {
+      const next = [];
+      for (let i = 0; i < count; i++) {
+        const existing = prev.find((f) => f.floor === i);
+        let roomsCount;
+        if (i === 0) {
+          roomsCount = gRooms;
+        } else if (sameForAll) {
+          roomsCount = gRooms;
+        } else if (existing && existing.customized) {
+          roomsCount = existing.rooms;
+        } else {
+          roomsCount = gRooms;
+        }
+
+        next.push({
+          floor: i,
+          name: getFloorLabel(i),
+          rooms: roomsCount,
+          customized: existing ? existing.customized && !sameForAll : false,
+        });
+      }
+      return next;
+    });
+  }, [numFloors, groundRooms, sameForAll]);
+
+  const handleFloorRoomChange = (floorIdx, val) => {
+    const parsed = parseInt(val, 10);
+    const rooms = isNaN(parsed) ? '' : Math.max(1, Math.min(100, parsed));
+    setFloors((prev) =>
+      prev.map((f) => {
+        if (f.floor === floorIdx) {
+          return { ...f, rooms, customized: true };
+        }
+        return f;
+      })
+    );
+    if (sameForAll) {
+      setSameForAll(false);
+    }
+  };
+
+  const handleGroundRoomsChange = (val) => {
+    const parsed = parseInt(val, 10);
+    const num = isNaN(parsed) ? '' : Math.max(1, Math.min(100, parsed));
+    setGroundRooms(num);
+  };
+
+  const handleNumFloorsChange = (val) => {
+    const parsed = parseInt(val, 10);
+    const num = isNaN(parsed) ? '' : Math.max(1, Math.min(20, parsed));
+    setNumFloors(num);
+  };
+
+  const totalRooms = floors.reduce((s, f) => s + (Number(f.rooms) || 0), 0);
+  const totalBeds = totalRooms * Number(defaultBeds || 1);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!blockName.trim()) {
+      setError('Please enter a Block Name (e.g. "A" or "Tower 1")');
+      return;
+    }
+    if (floors.some((f) => !f.rooms || Number(f.rooms) < 1)) {
+      setError('All floors must have at least 1 room');
+      return;
+    }
+
+    setBusy(true);
+    setError('');
+    try {
+      const res = await api('/owner/blocks/bulk', {
+        method: 'POST',
+        body: {
+          name: blockName.trim(),
+          prefix: (prefix || 'A').trim().toUpperCase(),
+          defaultBeds: Number(defaultBeds),
+          bedRent: Number(bedRent),
+          initialReading: Number(initialReading || 0),
+          floors: floors.map((f) => ({
+            floor: f.floor,
+            rooms: Number(f.rooms),
+          })),
+        },
+      });
+      onSuccess?.({
+        message: `Block "${res.block?.name}" generated successfully with ${res.stats?.floors} floors, ${res.stats?.rooms} rooms, and ${res.stats?.beds} beds ✓`,
+      });
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+      <div
+        className="w-full max-w-2xl bg-surface rounded-3xl shadow-2xl border border-line flex flex-col max-h-[92vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Modal Header */}
+        <div className="px-6 py-4 border-b border-line flex items-center justify-between bg-surface-2/60 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-primary-soft text-primary flex items-center justify-center font-bold text-lg shrink-0">
+              <span className="material-symbols-outlined text-[24px]">domain_add</span>
+            </div>
+            <div>
+              <h2 className="font-headline text-lg font-bold text-ink">Smart Bulk Block Creation</h2>
+              <p className="font-body text-xs text-ink-2">Generate an entire building block with floors, rooms & beds in one click</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+          {/* Section 1: Basic Details */}
+          <div className="flex flex-col gap-3">
+            <span className="font-label text-xs uppercase tracking-wider font-bold text-primary">
+              1. Basic Block Details
+            </span>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <label className="flex flex-col gap-1.5">
+                <span className="font-label text-xs font-semibold text-ink-2">
+                  Block Name <b className="text-danger">*</b>
+                </span>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. A, Block B, North Wing"
+                  value={blockName}
+                  onChange={(e) => setBlockName(e.target.value)}
+                  className="px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="font-label text-xs font-semibold text-ink-2">
+                  Room Prefix (Auto-derived)
+                </span>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. A"
+                  value={prefix}
+                  onChange={(e) => {
+                    setPrefix(e.target.value.toUpperCase());
+                    setPrefixEdited(true);
+                  }}
+                  className="px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm font-mono uppercase focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="font-label text-xs font-semibold text-ink-2">
+                  Number of Floors <b className="text-danger">*</b>
+                </span>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  required
+                  value={numFloors}
+                  onChange={(e) => handleNumFloorsChange(e.target.value)}
+                  className="px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm tabular-nums focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                />
+                <span className="text-[11px] text-ink-2">Ground + {Math.max(0, numFloors - 1)} upper floor(s)</span>
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="font-label text-xs font-semibold text-ink-2">
+                  Ground Floor Rooms <b className="text-danger">*</b>
+                </span>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  required
+                  value={groundRooms}
+                  onChange={(e) => handleGroundRoomsChange(e.target.value)}
+                  className="px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm tabular-nums focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                />
+                <span className="text-[11px] text-ink-2">Default room count for all floors</span>
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="font-label text-xs font-semibold text-ink-2">
+                  Default Beds per Room <b className="text-danger">*</b>
+                </span>
+                <select
+                  value={defaultBeds}
+                  onChange={(e) => setDefaultBeds(Number(e.target.value))}
+                  className="px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                >
+                  <option value={1}>Single Room (1 Bed)</option>
+                  <option value={2}>2-Sharing (2 Beds)</option>
+                  <option value={3}>3-Sharing (3 Beds)</option>
+                  <option value={4}>4-Sharing (4 Beds)</option>
+                  <option value={5}>5-Sharing (5 Beds)</option>
+                  <option value={6}>6-Sharing (6 Beds)</option>
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="font-label text-xs font-semibold text-ink-2">
+                  Default Rent / Bed (₹/mo)
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  value={bedRent}
+                  onChange={(e) => setBedRent(Number(e.target.value) || 0)}
+                  className="px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm tabular-nums focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Section 2: Automatic Floor Configuration */}
+          <div className="flex flex-col gap-3 pt-2 border-t border-line">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="font-label text-xs uppercase tracking-wider font-bold text-primary">
+                2. Automatic Floor Configuration
+              </span>
+
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={sameForAll}
+                  onChange={(e) => setSameForAll(e.target.checked)}
+                  className="w-4 h-4 rounded text-primary border-line focus:ring-primary"
+                />
+                <span className="text-xs font-semibold text-ink">Use same room count for all floors</span>
+              </label>
+            </div>
+
+            {/* Inline Floors Table */}
+            <div className="border border-line rounded-2xl overflow-hidden bg-surface shadow-xs">
+              <div className="grid grid-cols-12 bg-surface-2 px-4 py-2.5 text-[11px] font-bold text-ink-2 border-b border-line">
+                <span className="col-span-4">Floor</span>
+                <span className="col-span-3 text-center">Rooms</span>
+                <span className="col-span-2 text-center">Beds</span>
+                <span className="col-span-3 text-right">Sample Numbers</span>
+              </div>
+
+              <div className="divide-y divide-line/60">
+                {floors.map((fl) => {
+                  const roomsCount = Number(fl.rooms) || 0;
+                  const bedsOnFloor = roomsCount * defaultBeds;
+                  const sampleRange = roomsCount > 0
+                    ? `${getSampleRoom(prefix, fl.floor, 1)}–${getSampleRoom(prefix, fl.floor, roomsCount)}`
+                    : '—';
+
+                  return (
+                    <div
+                      key={fl.floor}
+                      className={`grid grid-cols-12 items-center px-4 py-2.5 text-xs transition-colors ${
+                        fl.customized ? 'bg-primary-soft/20' : 'hover:bg-surface-2/40'
+                      }`}
+                    >
+                      <div className="col-span-4 flex items-center gap-1.5">
+                        <span className="font-bold text-ink">{fl.name}</span>
+                        {fl.customized && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded-full bg-primary-soft text-primary">
+                            custom
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="col-span-3 flex justify-center">
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          required
+                          value={fl.rooms}
+                          onChange={(e) =>
+                            fl.floor === 0
+                              ? handleGroundRoomsChange(e.target.value)
+                              : handleFloorRoomChange(fl.floor, e.target.value)
+                          }
+                          className="w-20 px-2.5 py-1 text-center font-bold rounded-lg border border-line bg-surface text-ink tabular-nums text-xs focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="col-span-2 text-center tabular-nums text-ink-2 font-medium">
+                        {bedsOnFloor}
+                      </div>
+
+                      <div className="col-span-3 text-right font-mono text-[11px] text-ink-2 font-semibold">
+                        {sampleRange}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Live Summary and Preview */}
+          <div className="bg-primary-soft/30 border border-primary/20 rounded-2xl p-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-primary flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[18px]">analytics</span>
+                <span>Live Block Generation Summary</span>
+              </span>
+              <span className="text-xs font-semibold text-ink-2">
+                Potential: <b className="text-primary tabular-nums">{inr(totalBeds * bedRent)}/mo</b>
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="bg-surface rounded-xl p-2.5 border border-line flex flex-col text-center">
+                <span className="text-[10px] text-ink-2 uppercase font-semibold">Block</span>
+                <b className="text-sm font-bold text-ink truncate">{blockName || 'A'}</b>
+              </div>
+              <div className="bg-surface rounded-xl p-2.5 border border-line flex flex-col text-center">
+                <span className="text-[10px] text-ink-2 uppercase font-semibold">Floors</span>
+                <b className="text-sm font-bold text-ink tabular-nums">{floors.length}</b>
+              </div>
+              <div className="bg-surface rounded-xl p-2.5 border border-line flex flex-col text-center">
+                <span className="text-[10px] text-ink-2 uppercase font-semibold">Rooms</span>
+                <b className="text-sm font-bold text-primary tabular-nums">{totalRooms}</b>
+              </div>
+              <div className="bg-surface rounded-xl p-2.5 border border-line flex flex-col text-center">
+                <span className="text-[10px] text-ink-2 uppercase font-semibold">Total Beds</span>
+                <b className="text-sm font-bold text-success tabular-nums">{totalBeds}</b>
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <p className="rounded-xl px-4 py-2.5 text-xs font-semibold bg-danger-soft text-on-danger-soft">
+              {error}
+            </p>
+          )}
+
+          {/* Footer Actions */}
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={busy}
+              className="flex-1 px-5 py-3 rounded-full bg-surface text-ink border border-line font-label text-sm font-semibold hover:bg-surface-2 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={busy || !blockName.trim() || totalRooms === 0}
+              className="flex-2 w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-[18px]">rocket_launch</span>
+              <span>
+                {busy ? 'Generating Block...' : `Generate Block (${totalRooms} Rooms · ${totalBeds} Beds)`}
+              </span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function Beds() {
   const [tab, setTab] = useState('hierarchy'); // 'hierarchy' | 'grid' | 'new'
   const bedsData = useLoad(() => api('/owner/beds'));
@@ -196,6 +646,7 @@ export function Beds() {
   const [blockFilter, setBlockFilter] = useState('all');
   const [msg, setMsg] = useState({ text: '' });
   const [busy, setBusy] = useState(false);
+  const [addBlockOpen, setAddBlockOpen] = useState(false);
 
   // New room form state
   const [newRoom, setNewRoom] = useState({
@@ -288,9 +739,19 @@ export function Beds() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-0.5">
-        <h1 className="font-headline text-2xl font-bold text-ink">Rooms & Beds Setup</h1>
-        <p className="font-body text-sm text-ink-2">Hierarchy · Sharing types · Bed availability</p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex flex-col gap-0.5">
+          <h1 className="font-headline text-2xl font-bold text-ink">Rooms & Beds Setup</h1>
+          <p className="font-body text-sm text-ink-2">Hierarchy · Sharing types · Bed availability</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setAddBlockOpen(true)}
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-primary text-on-primary font-label text-xs font-bold shadow-sm hover:opacity-95 transition-opacity shrink-0"
+        >
+          <span className="material-symbols-outlined text-[18px]">domain_add</span>
+          <span>+ Add Block</span>
+        </button>
       </div>
 
       {/* Stat Tiles */}
@@ -350,33 +811,45 @@ export function Beds() {
       )}
 
       {/* Block Filter Chips */}
-      {tab !== 'new' && blocks.length > 1 && (
+      {tab !== 'new' && (
         <div className="flex flex-wrap items-center gap-2">
+          {blocks.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={() => setBlockFilter('all')}
+                className={`px-3.5 py-1.5 rounded-full font-label text-xs font-semibold transition-all ${
+                  blockFilter === 'all'
+                    ? 'bg-primary text-on-primary'
+                    : 'bg-surface border border-line text-ink-2 hover:text-ink'
+                }`}
+              >
+                All Blocks
+              </button>
+              {blocks.map((blk) => (
+                <button
+                  key={blk.id}
+                  type="button"
+                  onClick={() => setBlockFilter(blk.name)}
+                  className={`px-3.5 py-1.5 rounded-full font-label text-xs font-semibold transition-all ${
+                    blockFilter === blk.name
+                      ? 'bg-primary text-on-primary'
+                      : 'bg-surface border border-line text-ink-2 hover:text-ink'
+                  }`}
+                >
+                  {blk.name}
+                </button>
+              ))}
+            </>
+          )}
           <button
             type="button"
-            onClick={() => setBlockFilter('all')}
-            className={`px-3.5 py-1.5 rounded-full font-label text-xs font-semibold transition-all ${
-              blockFilter === 'all'
-                ? 'bg-primary text-on-primary'
-                : 'bg-surface border border-line text-ink-2 hover:text-ink'
-            }`}
+            onClick={() => setAddBlockOpen(true)}
+            className="px-3.5 py-1.5 rounded-full font-label text-xs font-semibold bg-primary-soft text-primary hover:opacity-90 inline-flex items-center gap-1 transition-opacity"
           >
-            All Blocks
+            <span className="material-symbols-outlined text-[14px]">domain_add</span>
+            <span>+ Add Block</span>
           </button>
-          {blocks.map((blk) => (
-            <button
-              key={blk.id}
-              type="button"
-              onClick={() => setBlockFilter(blk.name)}
-              className={`px-3.5 py-1.5 rounded-full font-label text-xs font-semibold transition-all ${
-                blockFilter === blk.name
-                  ? 'bg-primary text-on-primary'
-                  : 'bg-surface border border-line text-ink-2 hover:text-ink'
-              }`}
-            >
-              {blk.name}
-            </button>
-          ))}
         </div>
       )}
 
@@ -384,9 +857,21 @@ export function Beds() {
       {tab === 'hierarchy' && (
         <div className="flex flex-col gap-4">
           {filteredRooms.length === 0 && (
-            <p className="bg-surface border border-line rounded-xl p-4 text-center text-sm text-ink-2">
-              No rooms found.
-            </p>
+            <div className="bg-surface border border-line rounded-2xl p-8 text-center flex flex-col items-center gap-3">
+              <span className="material-symbols-outlined text-ink-2 text-[44px]">domain_disabled</span>
+              <div>
+                <p className="font-bold text-ink text-sm">No rooms or blocks created yet</p>
+                <p className="text-xs text-ink-2 mt-0.5">Use bulk block creation to generate an entire building in one click.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAddBlockOpen(true)}
+                className="mt-1 inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-primary text-on-primary font-label text-xs font-bold shadow-sm hover:opacity-95"
+              >
+                <span className="material-symbols-outlined text-[18px]">domain_add</span>
+                <span>+ Add Block (Bulk Generate)</span>
+              </button>
+            </div>
           )}
 
           {blocks
@@ -651,6 +1136,16 @@ export function Beds() {
           </button>
         </form>
       )}
+
+      <BulkBlockModal
+        isOpen={addBlockOpen}
+        onClose={() => setAddBlockOpen(false)}
+        onSuccess={(res) => {
+          setMsg({ text: res.message });
+          reloadAll();
+        }}
+        sharingDefaults={sharingDefaults}
+      />
     </div>
   );
 }
