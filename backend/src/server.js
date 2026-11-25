@@ -12,6 +12,7 @@ import { Bed } from './models.js';
 import { getSettings } from './billing.js';
 import { daysSince, wrap } from './util.js';
 import authRoutes from './routes/auth.js';
+import publicRoutes from './routes/public.js';
 import tenantRoutes from './routes/tenant.js';
 import managerRoutes from './routes/manager.js';
 import ownerRoutes from './routes/owner.js';
@@ -29,26 +30,7 @@ app.use(express.json({ limit: '100kb' }));
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 app.use('/api/auth', authRoutes);
-
-// Public vacancy page data: no tenant info, only free beds.
-app.get('/api/public/vacancy', wrap(async (_req, res) => {
-  const [s, beds] = await Promise.all([
-    getSettings(),
-    Bed.find({ status: 'vacant' }).populate({ path: 'room', populate: { path: 'block' } }).sort({ label: 1 }),
-  ]);
-  res.json({
-    pg: s.name, contactPhone: s.contactPhone,
-    beds: beds.map((b) => ({
-      label: b.label,
-      room: b.room?.number,
-      floor: b.room?.floor ?? 0,
-      block: b.room?.block?.name || 'Main Wing',
-      sharingType: b.room?.sharingType || 2,
-      rent: b.rent,
-      daysVacant: daysSince(b.vacantSince),
-    })),
-  });
-}));
+app.use('/api/public', publicRoutes);
 
 app.post('/api/upload', requireAuth, requireRole('tenant', 'manager', 'malik'), upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'File nahi mili' });

@@ -636,3 +636,276 @@ export function Menu() {
     </div>
   );
 }
+
+export function LeavePass() {
+  const dash = useLoad(() => api('/tenant/dashboard'));
+  const leaves = useLoad(() => api('/tenant/leaves'));
+
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const threeDaysLater = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+
+  const [startDate, setStartDate] = useState(tomorrow);
+  const [endDate, setEndDate] = useState(threeDaysLater);
+  const [destination, setDestination] = useState('Ghar');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState({ text: '', bad: false });
+  const [shareData, setShareData] = useState(null);
+  const [showApply, setShowApply] = useState(false);
+
+  if (dash.error) return <ErrorBox text={dash.error} />;
+  if (!dash.data) return <Loading />;
+
+  const parentPhone = dash.data.tenant?.parent?.fatherPhone || dash.data.tenant?.parent?.motherPhone;
+  const parentName = dash.data.tenant?.parent?.fatherName || dash.data.tenant?.parent?.motherName || 'Mummy / Papa';
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!reason.trim()) {
+      setMsg({ text: 'Chhutti ka karan (reason) likhein', bad: true });
+      return;
+    }
+    setBusy(true);
+    setMsg({ text: '', bad: false });
+    try {
+      const res = await api('/tenant/leave', {
+        method: 'POST',
+        body: { startDate, endDate, destination, reason: reason.trim() },
+      });
+      setMsg({ text: 'Leave request submit ho gayi! Parent approval ke liye link generate hua.', bad: false });
+      setReason('');
+      setShowApply(false);
+      leaves.reload();
+      setShareData(res);
+    } catch (e) {
+      setMsg({ text: e.message, bad: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-0.5">
+        <h1 className="font-headline text-2xl font-bold text-ink">Chhutti & Night Pass</h1>
+        <p className="font-body text-sm text-ink-2">
+          PG se bahar jaane ke liye application dein · Parent approval zaroori hai
+        </p>
+      </div>
+
+      {msg.text && (
+        <p className={`rounded-xl px-4 py-2.5 text-xs font-semibold ${msg.bad ? 'bg-danger-soft text-on-danger-soft' : 'bg-success-soft text-on-success-soft'}`}>
+          {msg.text}
+        </p>
+      )}
+
+      {/* Action Button */}
+      {!showApply ? (
+        <button
+          type="button"
+          onClick={() => setShowApply(true)}
+          className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity"
+        >
+          <span className="material-symbols-outlined text-[20px]">add</span>
+          <span>Nayi Chhutti / Pass Apply Karein</span>
+        </button>
+      ) : (
+        /* Leave Request Form */
+        <form onSubmit={submit} className="bg-surface border border-line rounded-2xl p-5 shadow-sm flex flex-col gap-3.5">
+          <div className="flex items-center justify-between border-b border-line pb-2.5">
+            <h2 className="font-title text-base font-bold text-ink">Leave Application Form</h2>
+            <button
+              type="button"
+              onClick={() => setShowApply(false)}
+              className="text-xs text-ink-2 hover:text-ink font-semibold"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <label className="flex flex-col gap-1">
+              <span className="font-label text-xs font-semibold text-ink-2">Kis din jaana hai (Start)</span>
+              <input
+                type="date"
+                required
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-surface border border-line text-ink font-body text-xs focus:border-primary focus:outline-none"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="font-label text-xs font-semibold text-ink-2">Kis din wapas aana hai (End)</span>
+              <input
+                type="date"
+                required
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-surface border border-line text-ink font-body text-xs focus:border-primary focus:outline-none"
+              />
+            </label>
+          </div>
+
+          <label className="flex flex-col gap-1">
+            <span className="font-label text-xs font-semibold text-ink-2">Kahan ja rahe hain (Destination)</span>
+            <input
+              required
+              placeholder="e.g. Ghar (Home), Delhi, Friend's Place"
+              value={destination}
+              onChange={(e) => setDestination(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="font-label text-xs font-semibold text-ink-2">Karan (Reason)</span>
+            <textarea
+              required
+              rows={2}
+              placeholder="e.g. Diwali ki chhutti / Family function / Festival"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full px-3.5 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none resize-none"
+            />
+          </label>
+
+          <div className="bg-primary-soft/40 border border-primary-soft rounded-xl p-3 text-xs text-primary flex items-start gap-2">
+            <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">verified_user</span>
+            <div>
+              <p className="font-semibold">Parent Approval Rule:</p>
+              <p className="text-[11px] opacity-90 mt-0.5">
+                Ye request aapke parent ({parentName}: <b>{parentPhone || 'Mobile not set'}</b>) ke WhatsApp par bheji jayegi. Unke 'Manjoor' karne ke baad hi pass approve hoga.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 disabled:opacity-50 transition-opacity"
+          >
+            {busy ? 'Submit ho raha...' : 'Submit Karein & Parent Approval Bhejein'}
+          </button>
+        </form>
+      )}
+
+      {/* Share / WhatsApp Modal */}
+      {shareData && (
+        <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShareData(null)}>
+          <div className="w-full max-w-md bg-surface rounded-2xl p-6 shadow-xl flex flex-col gap-4 border border-line" onClick={(e) => e.stopPropagation()}>
+            <div className="text-center flex flex-col items-center gap-2">
+              <div className="w-12 h-12 rounded-full bg-primary-soft text-primary flex items-center justify-center">
+                <span className="material-symbols-outlined text-2xl">send</span>
+              </div>
+              <h2 className="font-headline text-lg font-bold text-ink">Parent Approval Link Tayar Hai!</h2>
+              <p className="font-body text-xs text-ink-2">
+                Apne mummy/papa ({parentPhone}) ko ye link WhatsApp par bhejein taaki wo 1-click mein approve kar sakein.
+              </p>
+            </div>
+
+            {(() => {
+              const approvalUrl = `${window.location.origin}/parent-approval/${shareData.approvalToken}`;
+              const waText = encodeURIComponent(
+                `Namaste! Main PG se chhutti (${fmtDate(shareData.leave?.startDate)} se ${fmtDate(shareData.leave?.endDate)}) ke liye application de raha hoon.\n\nKripya is link par click karke apni manjoori (approval) dein:\n${approvalUrl}`
+              );
+              const waLink = `https://wa.me/91${parentPhone}?text=${waText}`;
+
+              return (
+                <div className="flex flex-col gap-2.5 pt-2">
+                  <a
+                    href={waLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-[#25D366] text-white font-label text-xs font-bold shadow-sm hover:opacity-95"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">chat</span>
+                    <span>Mummy/Papa Ko WhatsApp Bhejo</span>
+                  </a>
+
+                  <a
+                    href={approvalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-surface border border-line text-ink font-label text-xs font-semibold hover:bg-surface-2"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+                    <span>Parent Approval Page Khol Kar Dekhein</span>
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => setShareData(null)}
+                    className="w-full py-2.5 rounded-full text-ink-2 font-label text-xs font-semibold hover:text-ink"
+                  >
+                    Band Karein
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* History List */}
+      <div className="flex flex-col gap-3">
+        <h2 className="font-title text-base font-bold text-ink">Chhutti History & Live Status</h2>
+
+        {(!leaves.data || leaves.data.length === 0) ? (
+          <p className="bg-surface border border-line rounded-2xl p-6 text-center text-sm text-ink-2">
+            Aapne abhi tak koi chhutti ya leave pass apply nahi kiya hai.
+          </p>
+        ) : (
+          leaves.data.map((l) => {
+            const isApproved = l.parentStatus === 'approved';
+            const isRejected = l.parentStatus === 'rejected';
+            const isPending = l.parentStatus === 'pending';
+
+            return (
+              <article key={l._id} className="bg-surface border border-line rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+                <header className="flex items-start justify-between gap-2">
+                  <div>
+                    <h3 className="font-title text-sm font-bold text-ink">
+                      {fmtDate(l.startDate)} se {fmtDate(l.endDate)}
+                    </h3>
+                    <p className="text-xs text-ink-2">Destination: <b>{l.destination || 'Ghar'}</b></p>
+                  </div>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 ${
+                    isApproved
+                      ? 'bg-success-soft text-on-success-soft'
+                      : isRejected
+                      ? 'bg-danger-soft text-on-danger-soft'
+                      : 'bg-warning-soft text-on-warning-soft'
+                  }`}>
+                    {isApproved ? 'Parent: Manjoor ✓' : isRejected ? 'Parent: Aswikaar ✕' : 'Parent: Pending ⏳'}
+                  </span>
+                </header>
+
+                <p className="text-xs text-ink-2 bg-surface-2 p-2.5 rounded-xl">
+                  Reason: <b>"{l.reason}"</b>
+                  {l.parentRemarks && <span className="block mt-1 text-ink">Parent Remarks: "{l.parentRemarks}"</span>}
+                </p>
+
+                <footer className="flex items-center justify-between pt-1 border-t border-line text-xs">
+                  <span className="text-ink-2">
+                    Manager: <b>{l.managerStatus === 'acknowledged' ? 'Acknowledged ✓' : 'Awaiting'}</b>
+                  </span>
+
+                  {isPending && (
+                    <button
+                      type="button"
+                      onClick={() => setShareData({ leave: l, approvalToken: l.approvalToken })}
+                      className="px-3 py-1 rounded-full bg-primary-soft text-primary font-semibold text-xs hover:opacity-90 inline-flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">share</span>
+                      <span>Parent Link Bhejo</span>
+                    </button>
+                  )}
+                </footer>
+              </article>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}

@@ -77,8 +77,9 @@ const rentOps = (tenants, month, dueDay) =>
 // Idempotent: creates the month's rent entry for every active tenant who joined before the month ended.
 export async function ensureDues(month, onlyTenant) {
   const { dueDay } = await getSettings();
-  const filter = { status: { $in: ['active', 'notice'] }, joinedOn: { $lt: monthStart(nextMonth(month)) } };
-  if (onlyTenant) filter._id = onlyTenant;
+  const filter = onlyTenant
+    ? { _id: onlyTenant }
+    : { status: { $in: ['active', 'notice'] }, joinedOn: { $lt: monthStart(nextMonth(month)) } };
   const tenants = await Tenant.find(filter);
   if (tenants.length) await Payment.bulkWrite(rentOps(tenants, month, dueDay), { ordered: false });
 }

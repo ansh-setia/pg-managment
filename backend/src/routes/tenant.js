@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { Tenant, Payment, MeterReading, Complaint, MenuDay, FoodSkip, MenuRating, Settlement, Bed } from '../models.js';
+import { Tenant, Payment, MeterReading, Complaint, MenuDay, FoodSkip, MenuRating, Settlement, Bed, Leave } from '../models.js';
 import { config } from '../config.js';
 import { ensureDues, getSettings, receiptNo, createRazorpayOrder, verifyRazorpaySignature } from '../billing.js';
 import { sendWhatsApp } from '../notify.js';
@@ -150,6 +150,58 @@ r.get('/settlement', wrap(async (req, res) => {
   if (!s) throw new HttpError(404, 'Settlement slip nahi mili');
   const settings = await getSettings();
   res.json({ pg: settings.name, settlement: s });
+}));
+
+// ---- Leave & Night Out Pass ----
+r.post('/leave', wrap(async (req, res) => {
+  const t = await me(req);
+  const { startDate, endDate, reason, destination = 'Ghar' } = req.body;
+  if (!startDate || !endDate) throw new HttpError(400, 'Chhutti shuru aur khatam hone ki date zaroori hai');
+  if (!reason?.trim()) throw new HttpError(400, 'Chhutti ka reason likhein');
+
+  const sDate = new Date(startDate);
+  const eDate = new Date(endDate);
+  if (isNaN(sDate.getTime()) || isNaN(eDate.getTime()) || eDate < sDate) {
+    throw new HttpError(400, 'Valid dates chuno');
+  }
+
+  const parentPhone = t.parent?.fatherPhone || t.parent?.motherPhone;
+  if (!parentPhone) {
+    throw new HttpError(400, 'Profile mein mummy/papa ka phone number nahi mila. Manager se update karwayein.');
+  }
+
+  const approvalToken = crypto.randomBytes(16).toString('hex');
+  const leave = await Leave.create({
+    tenant: t._id,
+    startDate: sDate,
+    endDate: eDate,
+    reason: reason.trim(),
+    destination: destination.trim(),
+    parentPhone,
+    parentName: t.parent?.fatherName || t.parent?.motherName || 'Mata/Pita',
+    approvalToken,
+    parentStatus: 'pending',
+  });
+
+  await sendWhatsApp(parentPhone, 'leave_approval_request', {
+    wardName: t.name,
+    dates: `${sDate.toLocaleDateString('en-IN')} se ${eDate.toLocaleDateString('en-IN')}`,
+    reason,
+    approvalToken,
+  });
+
+  res.status(201).json({
+    ok: true,
+    leave,
+    approvalToken,
+    approvalPath: `/parent-approval/${approvalToken}`,
+  });
+}));
+
+r.get('/leaves', wrap(async (req, res) => {
+  const t = await me(req);
+  const leaves = await Leave.find({ tenant: t._id }).sort({ createdAt: -1 });
+  res.json(leaves);
 }));
 
 r.get('/receipt/:receiptNo', wrap(async (req, res) => {

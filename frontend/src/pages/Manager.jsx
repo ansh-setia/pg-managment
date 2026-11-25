@@ -207,6 +207,12 @@ export function Tenants() {
   const [receiptSlip, setReceiptSlip] = useState(null);
   const [settlementSlip, setSettlementSlip] = useState(null);
 
+  // Quick Allot & Leaves View
+  const [viewTab, setViewTab] = useState('tenants'); // 'tenants' | 'leaves'
+  const [quickAllotOpen, setQuickAllotOpen] = useState(false);
+  const [inviteSuccess, setInviteSuccess] = useState(null);
+  const leaves = useLoad(() => api('/manager/leaves'), [viewTab]);
+
   if (error) return <ErrorBox text={error} />;
   if (!data) return <Loading />;
 
@@ -386,18 +392,35 @@ export function Tenants() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-0.5">
-        <h1 className="font-headline text-2xl font-bold text-ink">Tenants</h1>
-        <p className="font-body text-sm text-ink-2 tabular-nums">{data.length} active tenants</p>
+        <h1 className="font-headline text-2xl font-bold text-ink">Tenants & Leaves</h1>
+        <p className="font-body text-sm text-ink-2 tabular-nums">Spot booking · Onboarding · Chhutti approval</p>
       </div>
 
-      <button
-        type="button"
-        onClick={() => setAdding(true)}
-        className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-label text-sm font-bold shadow-sm hover:opacity-95 transition-opacity"
-      >
-        <span className="material-symbols-outlined text-[20px]">add</span>
-        <span>Naya tenant</span>
-      </button>
+      {/* View Switcher: Tenants vs Leaves */}
+      <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-surface-2 border border-line">
+        <button
+          type="button"
+          onClick={() => setViewTab('tenants')}
+          className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
+            viewTab === 'tenants' ? 'bg-surface text-primary shadow-sm font-bold' : 'text-ink-2 hover:text-ink'
+          }`}
+        >
+          Tenants ({data.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewTab('leaves')}
+          className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+            viewTab === 'leaves' ? 'bg-surface text-primary shadow-sm font-bold' : 'text-ink-2 hover:text-ink'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[16px]">flight_takeoff</span>
+          <span>Chhutti Passes</span>
+          {leaves.data?.filter((l) => l.parentStatus === 'pending').length > 0 && (
+            <span className="w-2 h-2 rounded-full bg-warning" />
+          )}
+        </button>
+      </div>
 
       {msg.text && (
         <p className={`rounded-xl px-4 py-2.5 text-xs font-semibold ${msg.bad ? 'bg-danger-soft text-on-danger-soft' : 'bg-success-soft text-on-success-soft'}`}>
@@ -405,91 +428,229 @@ export function Tenants() {
         </p>
       )}
 
-      {/* Tenants List */}
-      <div className="flex flex-col gap-3">
-        {data.map((t) => {
-          const initials = (t.name || 'TN')
-            .split(' ')
-            .map((s) => s[0])
-            .join('')
-            .slice(0, 2)
-            .toUpperCase();
-          const isOnNotice = t.status === 'notice';
-          return (
-            <article key={t._id} className="bg-surface border border-line rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-              <header className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary-soft text-primary flex items-center justify-center font-bold text-sm shrink-0">
-                    {initials}
-                  </div>
-                  <div className="flex flex-col">
-                    <h2 className="font-title text-base font-bold text-ink">{t.name}</h2>
-                    <p className="font-body text-xs text-ink-2 tabular-nums">
-                      Room {t.room?.number} {t.room?.sharingType ? `(${t.room.sharingType}-Sharing)` : ''} · Bed {t.bed?.label} · {t.phone}
-                    </p>
-                  </div>
+      {viewTab === 'tenants' ? (
+        <>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => setQuickAllotOpen(true)}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-full bg-primary text-on-primary font-label text-xs font-bold shadow-sm hover:opacity-95 transition-opacity"
+            >
+              <span className="material-symbols-outlined text-[18px]">bolt</span>
+              <span>⚡ Spot Allot (Quick)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-full bg-surface text-ink border border-line font-label text-xs font-semibold hover:bg-surface-2 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              <span>Manual Form</span>
+            </button>
+          </div>
+
+          {/* Tenants List */}
+          <div className="flex flex-col gap-3">
+            {data.map((t) => {
+              const initials = (t.name || 'TN')
+                .split(' ')
+                .map((s) => s[0])
+                .join('')
+                .slice(0, 2)
+                .toUpperCase();
+              const isOnNotice = t.status === 'notice';
+              const isInvited = t.status === 'invited';
+
+              return (
+                <article key={t._id} className="bg-surface border border-line rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+                  <header className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary-soft text-primary flex items-center justify-center font-bold text-sm shrink-0">
+                        {initials}
+                      </div>
+                      <div className="flex flex-col">
+                        <h2 className="font-title text-base font-bold text-ink">{t.name}</h2>
+                        <p className="font-body text-xs text-ink-2 tabular-nums">
+                          Room {t.room?.number} {t.room?.sharingType ? `(${t.room.sharingType}-Sharing)` : ''} · Bed {t.bed?.label} · {t.phone}
+                        </p>
+                      </div>
+                    </div>
+                    {isOnNotice && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-warning-soft text-on-warning-soft text-xs font-bold shrink-0">
+                        Notice
+                      </span>
+                    )}
+                    {isInvited && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-primary-soft text-primary text-xs font-bold shrink-0">
+                        ⚡ Invite Sent
+                      </span>
+                    )}
+                  </header>
+
+                  {isInvited && (
+                    <div className="bg-primary-soft/40 border border-primary-soft text-primary px-3.5 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between">
+                      <span>Aadhaar & Police Verification link bheja gaya hai</span>
+                      <button
+                        type="button"
+                        onClick={() => setInviteSuccess({
+                          tenant: t,
+                          inviteToken: t.inviteToken,
+                          invitePath: `/onboard/${t.inviteToken}`,
+                        })}
+                        className="px-2.5 py-1 rounded-full bg-primary text-on-primary font-bold text-[11px] hover:opacity-90"
+                      >
+                        Link Bhejo
+                      </button>
+                    </div>
+                  )}
+
+                  {isOnNotice && (
+                    <div className="bg-warning-soft text-on-warning-soft px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-between">
+                      <span>⚠️ Vacating Date: <b>{fmtDate(t.notice?.vacatingDate || t.noticeDate)}</b></span>
+                      <span className="opacity-80 capitalize">Reason: {t.notice?.reason || 'Notice'}</span>
+                    </div>
+                  )}
+
+                  <p className="font-body text-xs text-ink-2 tabular-nums">
+                    Kiraya {inr(t.rent)} · Deposit {inr(t.deposit)} · Police verification: {t.docs?.policeVerification === 'done' ? 'ho gayi ✓' : t.docs?.policeVerification === 'submitted' ? 'submitted (review pending)' : 'baaki'}
+                  </p>
+
+                  <footer className="flex items-center gap-2 pt-1 border-t border-line flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setPayModalTenant(t)}
+                      className="px-3 py-1.5 rounded-full bg-success-soft text-on-success-soft font-label text-xs font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">payments</span>
+                      <span>Kiraya Jama</span>
+                    </button>
+
+                    {!isOnNotice ? (
+                      <button
+                        type="button"
+                        onClick={() => setNoticeModalTenant(t)}
+                        className="px-3 py-1.5 rounded-full bg-primary-soft text-primary font-label text-xs font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">schedule</span>
+                        <span>Notice dein</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => cancelNotice(t)}
+                        className="px-3 py-1.5 rounded-full bg-surface-2 text-ink-2 border border-line font-label text-xs font-semibold hover:text-ink transition-colors inline-flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">cancel</span>
+                        <span>Cancel Notice</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setCheckoutModalTenant(t)}
+                      className="px-3 py-1.5 rounded-full bg-danger-soft text-on-danger-soft font-label text-xs font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">logout</span>
+                      <span>Checkout Settlement</span>
+                    </button>
+                  </footer>
+                </article>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        /* Leaves & Passes View */
+        <div className="flex flex-col gap-3">
+          {(!leaves.data || leaves.data.length === 0) && (
+            <p className="bg-surface border border-line rounded-2xl p-6 text-center text-sm text-ink-2">
+              Koi chhutti ya leave pass pending nahi hai.
+            </p>
+          )}
+
+          {leaves.data?.map((l) => (
+            <article key={l._id} className="bg-surface border border-line rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+              <header className="flex items-start justify-between">
+                <div>
+                  <h2 className="font-title text-base font-bold text-ink">{l.tenant?.name}</h2>
+                  <p className="text-xs text-ink-2">
+                    Room {l.tenant?.room?.number} (Bed {l.tenant?.bed?.label}) · {l.tenant?.phone}
+                  </p>
                 </div>
-                {isOnNotice && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-warning-soft text-on-warning-soft text-xs font-bold shrink-0">
-                    Notice
-                  </span>
-                )}
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                  l.parentStatus === 'approved'
+                    ? 'bg-success-soft text-on-success-soft'
+                    : l.parentStatus === 'rejected'
+                    ? 'bg-danger-soft text-on-danger-soft'
+                    : 'bg-warning-soft text-on-warning-soft'
+                }`}>
+                  {l.parentStatus === 'approved' ? 'Parent: Manjoor ✓' : l.parentStatus === 'rejected' ? 'Parent: Aswikaar ✕' : 'Parent: Pending ⏳'}
+                </span>
               </header>
 
-              {isOnNotice && (
-                <div className="bg-warning-soft text-on-warning-soft px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-between">
-                  <span>⚠️ Vacating Date: <b>{fmtDate(t.notice?.vacatingDate || t.noticeDate)}</b></span>
-                  <span className="opacity-80 capitalize">Reason: {t.notice?.reason || 'Notice'}</span>
+              <div className="bg-surface-2 rounded-xl p-3 text-xs flex flex-col gap-1.5">
+                <div className="flex justify-between">
+                  <span className="text-ink-2">Dates:</span>
+                  <b className="text-ink tabular-nums">{fmtDate(l.startDate)} se {fmtDate(l.endDate)}</b>
                 </div>
-              )}
+                <div className="flex justify-between">
+                  <span className="text-ink-2">Destination:</span>
+                  <b className="text-ink">{l.destination || 'Ghar'}</b>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-ink-2">Reason:</span>
+                  <b className="text-ink">{l.reason}</b>
+                </div>
+                <div className="flex justify-between border-t border-line/60 pt-1 text-[11px] text-ink-2">
+                  <span>Parent: {l.parentName} ({l.parentPhone})</span>
+                  {l.parentRemarks && <span>Remarks: "{l.parentRemarks}"</span>}
+                </div>
+              </div>
 
-              <p className="font-body text-xs text-ink-2 tabular-nums">
-                Kiraya {inr(t.rent)} · Deposit {inr(t.deposit)} · Police verification: {t.docs?.policeVerification === 'done' ? 'ho gayi ✓' : 'baaki'}
-              </p>
-
-              <footer className="flex items-center gap-2 pt-1 border-t border-line flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setPayModalTenant(t)}
-                  className="px-3 py-1.5 rounded-full bg-success-soft text-on-success-soft font-label text-xs font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-1"
-                >
-                  <span className="material-symbols-outlined text-[16px]">payments</span>
-                  <span>Kiraya Jama</span>
-                </button>
-
-                {!isOnNotice ? (
+              <footer className="flex items-center justify-between pt-1 border-t border-line text-xs">
+                <span className="text-ink-2">
+                  Manager status: <b>{l.managerStatus === 'acknowledged' ? 'Acknowledged ✓' : 'New'}</b>
+                </span>
+                {l.managerStatus !== 'acknowledged' && (
                   <button
                     type="button"
-                    onClick={() => setNoticeModalTenant(t)}
-                    className="px-3 py-1.5 rounded-full bg-primary-soft text-primary font-label text-xs font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-1"
+                    onClick={async () => {
+                      await api(`/manager/leaves/${l._id}/acknowledge`, { method: 'PATCH' });
+                      leaves.reload();
+                    }}
+                    className="px-3 py-1 rounded-full bg-primary-soft text-primary font-semibold text-xs hover:opacity-90"
                   >
-                    <span className="material-symbols-outlined text-[16px]">schedule</span>
-                    <span>Notice dein</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => cancelNotice(t)}
-                    className="px-3 py-1.5 rounded-full bg-surface-2 text-ink-2 border border-line font-label text-xs font-semibold hover:text-ink transition-colors inline-flex items-center gap-1"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">cancel</span>
-                    <span>Cancel Notice</span>
+                    Acknowledge Karein
                   </button>
                 )}
-
-                <button
-                  type="button"
-                  onClick={() => setCheckoutModalTenant(t)}
-                  className="px-3 py-1.5 rounded-full bg-danger-soft text-on-danger-soft font-label text-xs font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-1"
-                >
-                  <span className="material-symbols-outlined text-[16px]">logout</span>
-                  <span>Checkout Settlement</span>
-                </button>
               </footer>
             </article>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {/* Quick Allot Modal */}
+      {quickAllotOpen && (
+        <QuickAllotModal
+          beds={beds.data}
+          onClose={() => setQuickAllotOpen(false)}
+          onSuccess={(res) => {
+            setQuickAllotOpen(false);
+            setInviteSuccess(res);
+            reload();
+            beds.reload();
+          }}
+        />
+      )}
+
+      {/* Invite Success Modal with WhatsApp CTA */}
+      {inviteSuccess && (
+        <InviteSuccessModal
+          data={inviteSuccess}
+          onClose={() => setInviteSuccess(null)}
+        />
+      )}
 
       {/* Offline Payment Collection Modal */}
       {payModalTenant && (
@@ -547,6 +708,291 @@ export function Tenants() {
           onClose={() => setSettlementSlip(null)}
         />
       )}
+    </div>
+  );
+}
+
+// ---- Subcomponent Modals ----
+
+export function QuickAllotModal({ beds = [], onClose, onSuccess }) {
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [bedId, setBedId] = useState('');
+  const [rent, setRent] = useState('');
+  const [deposit, setDeposit] = useState('');
+  const [bookingAmount, setBookingAmount] = useState('2000');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (beds && beds.length > 0 && !bedId) {
+      const b0 = beds[0];
+      setBedId(b0._id);
+      setRent(String(b0.rent || 7500));
+      setDeposit(String(b0.deposit || (b0.rent ? b0.rent * 2 : 15000)));
+      setBookingAmount(String(b0.bookingAmount || 2000));
+    }
+  }, [beds, bedId]);
+
+  const handleBedChange = (id) => {
+    setBedId(id);
+    const b = beds.find((x) => x._id === id);
+    if (b) {
+      setRent(String(b.rent || 7500));
+      setDeposit(String(b.deposit || (b.rent ? b.rent * 2 : 15000)));
+      setBookingAmount(String(b.bookingAmount || 2000));
+    }
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) return setErr('Student ka naam likhein');
+    if (phone.replace(/\D/g, '').length !== 10) return setErr('10-digit mobile number daalein');
+    if (!bedId) return setErr('Bed chuno');
+
+    setBusy(true);
+    setErr('');
+    try {
+      const res = await api('/manager/tenants/quick-allot', {
+        method: 'POST',
+        body: {
+          name: name.trim(),
+          phone: phone.replace(/\D/g, ''),
+          bedId,
+          rent: Number(rent),
+          deposit: Number(deposit),
+          bookingAmount: Number(bookingAmount),
+        },
+      });
+      onSuccess(res);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-md bg-surface rounded-2xl p-6 shadow-xl flex flex-col gap-4 border border-line max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-line pb-3">
+          <div className="flex items-center gap-2">
+            <span className="w-8 h-8 rounded-full bg-primary-soft text-primary flex items-center justify-center">
+              <span className="material-symbols-outlined text-[18px]">bolt</span>
+            </span>
+            <div>
+              <h2 className="font-title text-base font-bold text-ink">Spot Allotment (Instant)</h2>
+              <small className="text-xs text-ink-2">Bacha aaya hai · 30 sec mein room allot karein</small>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink">
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="flex flex-col gap-3.5">
+          {err && <p className="rounded-xl px-4 py-2 text-xs font-semibold bg-danger-soft text-on-danger-soft">{err}</p>}
+
+          <label className="flex flex-col gap-1">
+            <span className="font-label text-xs font-semibold text-ink-2">Student Name</span>
+            <input
+              required
+              placeholder="e.g. Ansh Setia"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-3.5 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="font-label text-xs font-semibold text-ink-2">Mobile Number (WhatsApp)</span>
+            <input
+              required
+              inputMode="tel"
+              placeholder="10-digit number (e.g. 9149151900)"
+              value={phone}
+              maxLength={10}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+              className="w-full px-3.5 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm tabular-nums focus:border-primary focus:outline-none"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="font-label text-xs font-semibold text-ink-2">Bed Allotment</span>
+            {beds?.length === 0 ? (
+              <p className="text-xs text-danger font-semibold py-2">Koi vacant bed uplabdh nahi hai.</p>
+            ) : (
+              <select
+                value={bedId}
+                onChange={(e) => handleBedChange(e.target.value)}
+                className="w-full px-3.5 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm focus:border-primary focus:outline-none"
+              >
+                {beds?.map((b) => (
+                  <option key={b._id} value={b._id}>
+                    Room {b.room?.number || b.roomNumber} · Bed {b.label} ({b.room?.sharingType || 2}-Sharing) · {inr(b.rent)}/mo
+                  </option>
+                ))}
+              </select>
+            )}
+          </label>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <label className="flex flex-col gap-1">
+              <span className="font-label text-xs font-semibold text-ink-2">Rent / Mahina</span>
+              <input
+                type="number"
+                value={rent}
+                onChange={(e) => setRent(e.target.value)}
+                className="w-full px-3.5 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm tabular-nums focus:border-primary focus:outline-none"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="font-label text-xs font-semibold text-ink-2">Security Deposit</span>
+              <input
+                type="number"
+                value={deposit}
+                onChange={(e) => setDeposit(e.target.value)}
+                className="w-full px-3.5 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm tabular-nums focus:border-primary focus:outline-none"
+              />
+            </label>
+          </div>
+
+          <label className="flex flex-col gap-1">
+            <span className="font-label text-xs font-semibold text-ink-2">Booking Token / Part Payment Allowed (₹)</span>
+            <input
+              type="number"
+              value={bookingAmount}
+              onChange={(e) => setBookingAmount(e.target.value)}
+              className="w-full px-3.5 py-2 rounded-xl bg-surface border border-line text-ink font-body text-sm tabular-nums focus:border-primary focus:outline-none"
+            />
+            <small className="text-[11px] text-ink-2">Student is token amount se bhi bed lock kar sakta hai</small>
+          </label>
+
+          <div className="bg-primary-soft/40 border border-primary-soft rounded-xl p-3 text-xs text-primary flex items-start gap-2">
+            <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">info</span>
+            <span>Allot karte hi student ke WhatsApp pe link chala jayega jisme wo Aadhaar & Police verification bharega aur token/rent pay karega.</span>
+          </div>
+
+          <div className="flex gap-2.5 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-1/3 py-2.5 rounded-full border border-line text-ink font-label text-xs font-semibold hover:bg-surface-2 transition-colors"
+            >
+              Radd
+            </button>
+            <button
+              type="submit"
+              disabled={busy || !beds?.length}
+              className="w-2/3 py-2.5 rounded-full bg-primary text-on-primary font-label text-xs font-bold shadow-sm hover:opacity-95 disabled:opacity-50 transition-opacity flex items-center justify-center gap-1.5"
+            >
+              {busy ? 'Allot ho raha...' : '⚡ Allot Karein & Invite Bhejein'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export function InviteSuccessModal({ data, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const tenant = data?.tenant;
+  const inviteToken = data?.inviteToken || tenant?.inviteToken;
+  const inviteUrl = `${window.location.origin}/onboard/${inviteToken}`;
+  const phone = tenant?.phone || '';
+
+  const waMsg = encodeURIComponent(
+    `Namaste ${tenant?.name || 'Ji'}! Aapka PG (Room ${tenant?.room?.number || ''}, Bed ${tenant?.bed?.label || ''}) mein aapka bed reserve kar diya gaya hai.\n\nKripya is link par click karke apni Police Verification details bharein aur booking confirm karein:\n${inviteUrl}\n\nDhanyawad!`
+  );
+  const waUrl = `https://wa.me/91${phone}?text=${waMsg}`;
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Fallback
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-ink/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-md bg-surface rounded-2xl p-6 shadow-xl flex flex-col gap-4 border border-line" onClick={(e) => e.stopPropagation()}>
+        <div className="text-center flex flex-col items-center gap-2">
+          <div className="w-12 h-12 rounded-full bg-success-soft text-on-success-soft flex items-center justify-center">
+            <span className="material-symbols-outlined text-2xl font-bold">check_circle</span>
+          </div>
+          <h2 className="font-headline text-lg font-bold text-ink">Bed Spot Allot Ho Gaya!</h2>
+          <p className="font-body text-xs text-ink-2">
+            <b>{tenant?.name}</b> ({phone}) ke liye bed reserve kar diya gaya hai.
+          </p>
+        </div>
+
+        <div className="bg-surface-2 border border-line rounded-xl p-3 text-xs flex flex-col gap-1.5">
+          <div className="flex justify-between">
+            <span className="text-ink-2">Room & Bed:</span>
+            <b className="text-ink">Room {tenant?.room?.number || ''} · Bed {tenant?.bed?.label || ''}</b>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-ink-2">Monthly Rent:</span>
+            <b className="text-ink">{inr(tenant?.rent || 0)}</b>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-ink-2">Part Payment Allowed:</span>
+            <b className="text-primary">{inr(tenant?.bookingAmount || 2000)}</b>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="font-label text-xs font-semibold text-ink-2">Student Onboarding Link:</span>
+          <div className="flex items-center gap-2">
+            <input
+              readOnly
+              value={inviteUrl}
+              className="w-full px-3 py-2 rounded-xl bg-surface-2 border border-line text-ink font-body text-xs truncate focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={copyLink}
+              className="px-3 py-2 rounded-xl bg-surface border border-line text-ink font-label text-xs font-bold hover:bg-surface-2 shrink-0 transition-colors"
+            >
+              {copied ? 'Copied ✓' : 'Copy'}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 pt-2">
+          <a
+            href={waUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-[#25D366] text-white font-label text-xs font-bold shadow-sm hover:opacity-95 transition-opacity"
+          >
+            <span className="material-symbols-outlined text-[18px]">chat</span>
+            <span>WhatsApp Pe Invite Bhejo</span>
+          </a>
+
+          <a
+            href={inviteUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-surface border border-line text-ink font-label text-xs font-semibold hover:bg-surface-2 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+            <span>Link Direct Khol Kar Dekhein</span>
+          </a>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2.5 rounded-full text-ink-2 font-label text-xs font-semibold hover:text-ink transition-colors"
+          >
+            Band Karein
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

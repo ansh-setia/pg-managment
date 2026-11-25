@@ -3,7 +3,9 @@ import { Navigate, NavLink, Outlet, Route, Routes } from 'react-router-dom';
 import { api, hasToken, setToken } from './api.js';
 import Login from './pages/Login.jsx';
 import Vacancy from './pages/Vacancy.jsx';
-import { Rent, Bill, Complaint, Menu } from './pages/Tenant.jsx';
+import Onboard from './pages/Onboard.jsx';
+import ParentApproval from './pages/ParentApproval.jsx';
+import { Rent, Bill, Complaint, Menu, LeavePass } from './pages/Tenant.jsx';
 import { Meter, Complaints, Tenants, MenuEdit } from './pages/Manager.jsx';
 import { Hisaab, Beds, Settings } from './pages/Owner.jsx';
 
@@ -16,6 +18,7 @@ const TABS = {
     ['/bill', 'bolt', 'Bill'],
     ['/complaint', 'build', 'Complaint'],
     ['/menu', 'restaurant', 'Menu'],
+    ['/leave', 'event_available', 'Chhutti'],
   ],
   manager: [
     ['/meter', 'bolt', 'Meter'],
@@ -71,7 +74,8 @@ function Shell() {
       </main>
 
       <nav
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-xl z-20 bg-surface border-t border-line px-2 py-2 grid grid-cols-4 gap-1 shadow-sm"
+        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-xl z-20 bg-surface border-t border-line px-1.5 py-2 grid gap-1 shadow-sm"
+        style={{ gridTemplateColumns: `repeat(${TABS[user.role]?.length || 4}, minmax(0, 1fr))` }}
         aria-label="Primary navigation"
       >
         {TABS[user.role].map(([to, icon, label]) => (
@@ -121,6 +125,8 @@ export default function App() {
     <Auth.Provider value={{ user, logout }}>
       <Routes>
         <Route path="/vacancy" element={<Vacancy />} />
+        <Route path="/onboard/:token" element={<Onboard onLogin={login} />} />
+        <Route path="/parent-approval/:token" element={<ParentApproval />} />
         {!user && <Route path="*" element={<Login onLogin={login} />} />}
         {user && (
           <Route element={<Shell />}>
@@ -129,6 +135,7 @@ export default function App() {
               <Route path="/bill" element={<Bill />} />
               <Route path="/complaint" element={<Complaint />} />
               <Route path="/menu" element={<Menu />} />
+              <Route path="/leave" element={<LeavePass />} />
               <Route path="*" element={<Navigate to="/kiraya" replace />} />
             </>)}
             {user.role === 'manager' && (<>

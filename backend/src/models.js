@@ -74,8 +74,20 @@ export const Tenant = mongoose.model('Tenant', new Schema({
   rent: { type: Number, required: true },
   foodCharge: { type: Number, default: 0 },
   deposit: { type: Number, default: 0 },
+  bookingAmount: { type: Number, default: 0 },
   joinedOn: { type: Date, default: Date.now },
-  status: { type: String, enum: ['active', 'notice', 'left'], default: 'active' },
+  status: { type: String, enum: ['invited', 'active', 'notice', 'left'], default: 'active' },
+  inviteToken: { type: String, index: true },
+  aadhaarNumber: String,
+  permanentAddress: String,
+  collegeOrOffice: String,
+  parent: {
+    fatherName: String,
+    fatherPhone: String,
+    motherName: String,
+    motherPhone: String,
+    parentAddress: String,
+  },
   noticeDate: Date,
   notice: {
     requestedAt: Date,
@@ -90,7 +102,7 @@ export const Tenant = mongoose.model('Tenant', new Schema({
     idProof: String,
     photo: String,
     agreement: String,
-    policeVerification: { type: String, enum: ['pending', 'done'], default: 'pending' },
+    policeVerification: { type: String, enum: ['pending', 'submitted', 'done'], default: 'pending' },
   },
 }, { timestamps: true }));
 
@@ -191,3 +203,18 @@ const ratingSchema = new Schema({
 });
 ratingSchema.index({ tenant: 1, date: 1, meal: 1 }, { unique: true });
 export const MenuRating = mongoose.model('MenuRating', ratingSchema);
+
+export const Leave = mongoose.model('Leave', new Schema({
+  tenant: { ...ref('Tenant'), required: true },
+  startDate: { type: Date, required: true },
+  endDate: { type: Date, required: true },
+  reason: { type: String, required: true },
+  destination: { type: String, default: 'Home' },
+  parentPhone: { type: String, required: true },
+  parentName: { type: String, default: 'Mata/Pita' },
+  approvalToken: { type: String, required: true, index: true },
+  parentStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  parentActionAt: Date,
+  parentRemarks: String,
+  managerStatus: { type: String, enum: ['pending', 'acknowledged'], default: 'pending' },
+}, { timestamps: true }));

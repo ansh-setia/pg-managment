@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { Room, Bed, Tenant, User, MeterReading, Complaint, MenuDay, FoodSkip, Payment, Settlement } from '../models.js';
+import crypto from 'crypto';
+import { Room, Bed, Tenant, User, MeterReading, Complaint, MenuDay, FoodSkip, Payment, Settlement, Leave } from '../models.js';
 import { addElectricity, getSettings, ensureDues, receiptNo, settlementNo, recordPaymentTransaction } from '../billing.js';
 import { sendWhatsApp } from '../notify.js';
 import { HttpError, isDate, isMonth, monthStr, normPhone, todayStr, wrap } from '../util.js';
@@ -115,7 +116,77 @@ r.patch('/complaints/:id', wrap(async (req, res) => {
 
 // ---- Screen 7: tenants ----
 r.get('/tenants', wrap(async (_req, res) => {
-  res.json(await Tenant.find({ status: { $in: ['active', 'notice'] } }).populate('room bed').sort({ createdAt: -1 }));
+  res.json(await Tenant.find({ status: { $in: ['invited', 'active', 'notice'] } }).populate('room bed').sort({ createdAt: -1 }));
+}));
+
+r.post('/tenants/quick-allot', wrap(async (req, res) => {
+  const { name, bedId, rent: customRent, deposit: customDeposit, bookingAmount = 2000 } = req.body;
+  const phone = normPhone(req.body.phone);
+  if (!name?.trim() || phone.length !== 10) throw new HttpError(400, 'Naam aur 10 digit mobile number zaroori hai');
+  if (!bedId) throw new HttpError(400, 'Bed chuno');
+
+  const bed = await Bed.findOneAndUpdate({ _id: bedId, status: 'vacant' }, { status: 'occupied', vacantSince: null }, { new: true }).populate('room');
+  if (!bed) throw new HttpError(409, 'Ye bed abhi available nahi hai');
+
+  try {
+    let user = await User.findOne({ phone });
+    if (user && user.role !== 'tenant') throw new HttpError(409, 'Ye number staff ka hai');
+    if (user && (await Tenant.exists({ user: user._id, status: { $in: ['invited', 'active', 'notice'] } }))) {
+      throw new HttpError(409, 'Ye tenant pehle se active rooms mein hai');
+    }
+
+    if (user) { user.active = true; user.name = name.trim(); await user.save(); }
+    else user = await User.create({ phone, name: name.trim(), role: 'tenant' });
+
+    const rent = Number(customRent || bed.rent || 7500);
+    const deposit = Number(customDeposit != null ? customDeposit : (rent * 2));
+    const inviteToken = crypto.randomBytes(16).toString('hex');
+
+    const tenant = await Tenant.create({
+      user: user._id,
+      name: name.trim(),
+      phone,
+      room: bed.room?._id,
+      bed: bed._id,
+      rent,
+      deposit,
+      bookingAmount: Number(bookingAmount || 2000),
+      status: 'invited',
+      inviteToken,
+      docs: { policeVerification: 'pending' },
+    });
+
+    await sendWhatsApp(phone, 'onboarding_invite', {
+      name: tenant.name,
+      room: bed.room?.number,
+      bed: bed.label,
+      inviteToken,
+    });
+
+    res.status(201).json({
+      ok: true,
+      tenant,
+      inviteToken,
+      invitePath: `/onboard/${inviteToken}`,
+    });
+  } catch (e) {
+    await Bed.updateOne({ _id: bed._id }, { status: 'vacant', vacantSince: new Date() });
+    throw e;
+  }
+}));
+
+// ---- Leaves Management (Parent Approvals) ----
+r.get('/leaves', wrap(async (_req, res) => {
+  const list = await Leave.find().populate({ path: 'tenant', populate: { path: 'room bed' } }).sort({ createdAt: -1 });
+  res.json(list);
+}));
+
+r.patch('/leaves/:id/acknowledge', wrap(async (req, res) => {
+  const l = await Leave.findById(req.params.id);
+  if (!l) throw new HttpError(404, 'Leave request nahi mili');
+  l.managerStatus = 'acknowledged';
+  await l.save();
+  res.json({ ok: true, leave: l });
 }));
 
 r.get('/beds/vacant', wrap(async (_req, res) => {
