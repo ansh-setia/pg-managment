@@ -175,16 +175,54 @@ r.post('/tenants/quick-allot', wrap(async (req, res) => {
   }
 }));
 
-// ---- Leaves Management (Parent Approvals) ----
+// ---- Leaves Management (Parent Approvals & Manager Confirmation) ----
 r.get('/leaves', wrap(async (_req, res) => {
   const list = await Leave.find().populate({ path: 'tenant', populate: { path: 'room bed' } }).sort({ createdAt: -1 });
   res.json(list);
 }));
 
+r.post('/leaves/:id/decide', wrap(async (req, res) => {
+  const { action, remarks = '' } = req.body;
+  if (!['approved', 'denied'].includes(action)) {
+    throw new HttpError(400, 'Please select a valid action (approved / denied)');
+  }
+
+  const l = await Leave.findById(req.params.id).populate('tenant');
+  if (!l) throw new HttpError(404, 'Leave request not found');
+
+  l.managerStatus = action;
+  l.managerActionAt = new Date();
+  l.managerRemarks = String(remarks || '').trim();
+  await l.save();
+
+  // Notify student via WhatsApp
+  if (l.tenant?.phone) {
+    const sDate = new Date(l.startDate).toLocaleDateString('en-IN');
+    const eDate = new Date(l.endDate).toLocaleDateString('en-IN');
+    if (action === 'approved') {
+      await sendWhatsApp(l.tenant.phone, 'leave_manager_approved', {
+        name: l.tenant.name,
+        dates: `${sDate} to ${eDate}`,
+        destination: l.destination,
+        remarks: l.managerRemarks || 'Leave pass approved by manager',
+      });
+    } else {
+      await sendWhatsApp(l.tenant.phone, 'leave_manager_denied', {
+        name: l.tenant.name,
+        dates: `${sDate} to ${eDate}`,
+        reason: l.managerRemarks || 'Leave pass denied by manager',
+      });
+    }
+  }
+
+  res.json({ ok: true, leave: l });
+}));
+
 r.patch('/leaves/:id/acknowledge', wrap(async (req, res) => {
   const l = await Leave.findById(req.params.id);
   if (!l) throw new HttpError(404, 'Leave request not found');
-  l.managerStatus = 'acknowledged';
+  l.managerStatus = 'approved';
+  l.managerActionAt = new Date();
   await l.save();
   res.json({ ok: true, leave: l });
 }));

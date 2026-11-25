@@ -154,12 +154,17 @@ export default function ParentApproval() {
               </div>
             </div>
           ) : (
-            <div className="rounded-xl p-3.5 bg-surface-2 border border-line text-center text-xs text-ink-2 flex flex-col gap-1">
+            <div className="rounded-xl p-3.5 bg-surface-2 border border-line text-center text-xs text-ink-2 flex flex-col gap-1.5">
               <span>Your decision has been recorded:</span>
               <b className={data.parentStatus === 'approved' ? 'text-success' : 'text-danger'}>
-                {data.parentStatus === 'approved' ? '✓ Leave Approved' : '✕ Leave Rejected'}
+                {data.parentStatus === 'approved' ? '✓ Leave Approved by Parent' : '✕ Leave Rejected'}
               </b>
               {data.parentRemarks && <span>"{data.parentRemarks}"</span>}
+              {data.parentStatus === 'approved' && (
+                <p className="text-[11px] text-ink-2 mt-1 border-t border-line/60 pt-1.5">
+                  The PG manager will now call you to confirm before granting final outpass approval.
+                </p>
+              )}
             </div>
           )}
         </div>

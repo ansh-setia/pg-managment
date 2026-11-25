@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { ErrorBox, FilePick, Loading, SecureImg, Stat, fmtDate, inr, monthName, thisMonth, useLoad } from '../components.jsx';
+import { ErrorBox, FilePick, Loading, SecureImg, Stat, fmtDate, fmtTime, inr, monthName, thisMonth, useLoad } from '../components.jsx';
 
 // ---- Meter reading ----
 export function Meter() {
@@ -212,6 +212,31 @@ export function Tenants() {
   const [quickAllotOpen, setQuickAllotOpen] = useState(false);
   const [inviteSuccess, setInviteSuccess] = useState(null);
   const leaves = useLoad(() => api('/manager/leaves'), [viewTab]);
+  const [managerRemarks, setManagerRemarks] = useState({});
+  const [actionBusy, setActionBusy] = useState(null);
+
+  const handleManagerDecision = async (leaveId, action) => {
+    const remarks = managerRemarks[leaveId] || '';
+    if (action === 'denied' && !window.confirm('Are you sure you want to deny this leave request?')) return;
+    setActionBusy(leaveId);
+    try {
+      await api(`/manager/leaves/${leaveId}/decide`, {
+        method: 'POST',
+        body: { action, remarks },
+      });
+      setMsg({
+        text: action === 'approved'
+          ? 'Leave pass approved successfully ✓ Student has been notified.'
+          : 'Leave pass has been denied ✕',
+        bad: action === 'denied',
+      });
+      leaves.reload();
+    } catch (e) {
+      setMsg({ text: e.message, bad: true });
+    } finally {
+      setActionBusy(null);
+    }
+  };
 
   if (error) return <ErrorBox text={error} />;
   if (!data) return <Loading />;
@@ -416,8 +441,10 @@ export function Tenants() {
         >
           <span className="material-symbols-outlined text-[16px]">flight_takeoff</span>
           <span>Leave Passes</span>
-          {leaves.data?.filter((l) => l.parentStatus === 'pending').length > 0 && (
-            <span className="w-2 h-2 rounded-full bg-warning" />
+          {leaves.data?.filter((l) => l.parentStatus === 'approved' && l.managerStatus !== 'approved' && l.managerStatus !== 'denied').length > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-warning text-white text-[10px] font-bold">
+              {leaves.data.filter((l) => l.parentStatus === 'approved' && l.managerStatus !== 'approved' && l.managerStatus !== 'denied').length}
+            </span>
           )}
         </button>
       </div>
@@ -562,71 +589,213 @@ export function Tenants() {
         </>
       ) : (
         /* Leaves & Passes View */
-        <div className="flex flex-col gap-3">
-          {(!leaves.data || leaves.data.length === 0) && (
+        <div className="flex flex-col gap-3.5">
+          {(!leaves.data || leaves.data.length === 0) ? (
             <p className="bg-surface border border-line rounded-2xl p-6 text-center text-sm text-ink-2">
-              No leave passes pending approval.
+              No leave passes on record.
             </p>
+          ) : (
+            leaves.data.map((l) => {
+              const isParentApproved = l.parentStatus === 'approved';
+              const isParentRejected = l.parentStatus === 'rejected';
+              const isParentPending = l.parentStatus === 'pending';
+              const isManagerApproved = l.managerStatus === 'approved' || l.managerStatus === 'acknowledged';
+              const isManagerDenied = l.managerStatus === 'denied';
+              const isManagerPending = !isManagerApproved && !isManagerDenied;
+              const needsConfirmation = isParentApproved && isManagerPending;
+
+              return (
+                <article
+                  key={l._id}
+                  className={`bg-surface border rounded-2xl p-4 shadow-sm flex flex-col gap-3.5 transition-all ${
+                    needsConfirmation ? 'border-primary ring-1 ring-primary/20' : 'border-line'
+                  }`}
+                >
+                  <header className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-full bg-primary-soft text-primary font-bold text-sm flex items-center justify-center shrink-0">
+                        {(l.tenant?.name || 'TN').slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <h2 className="font-title text-base font-bold text-ink">{l.tenant?.name}</h2>
+                        <p className="text-xs text-ink-2 tabular-nums">
+                          Room {l.tenant?.room?.number} (Bed {l.tenant?.bed?.label}) · <a href={`tel:${l.tenant?.phone}`} className="text-primary hover:underline">{l.tenant?.phone}</a>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1">
+                      {/* Parent Status Badge */}
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                        isParentApproved
+                          ? 'bg-success-soft text-on-success-soft'
+                          : isParentRejected
+                          ? 'bg-danger-soft text-on-danger-soft'
+                          : 'bg-warning-soft text-on-warning-soft'
+                      }`}>
+                        {isParentApproved ? 'Parent: Approved ✓' : isParentRejected ? 'Parent: Rejected ✕' : 'Parent: Pending ⏳'}
+                      </span>
+
+                      {/* Manager Status Badge */}
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                        isManagerApproved
+                          ? 'bg-success text-white font-bold'
+                          : isManagerDenied
+                          ? 'bg-danger text-white font-bold'
+                          : needsConfirmation
+                          ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold'
+                          : 'bg-surface-2 text-ink-2'
+                      }`}>
+                        {isManagerApproved
+                          ? 'Leave Approved ✓'
+                          : isManagerDenied
+                          ? 'Denied by Manager ✕'
+                          : needsConfirmation
+                          ? '📞 Call Parent to Confirm'
+                          : 'Awaiting Parent'}
+                      </span>
+                    </div>
+                  </header>
+
+                  {/* Leave Details */}
+                  <div className="bg-surface-2 rounded-xl p-3 text-xs flex flex-col gap-1.5 border border-line/60">
+                    <div className="flex justify-between">
+                      <span className="text-ink-2">Leave Dates:</span>
+                      <b className="text-ink tabular-nums">{fmtDate(l.startDate)} to {fmtDate(l.endDate)}</b>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-ink-2">Destination:</span>
+                      <b className="text-ink">{l.destination || 'Home'}</b>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-ink-2">Reason for Leave:</span>
+                      <b className="text-ink">{l.reason}</b>
+                    </div>
+                  </div>
+
+                  {/* Parent Contact & Call Bar */}
+                  <div className="bg-primary-soft/30 border border-primary/20 rounded-xl p-3 flex flex-col gap-2">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-primary text-[20px]">contacts</span>
+                        <div>
+                          <span className="text-[10px] text-ink-2 uppercase tracking-wider font-bold">Parent Contact</span>
+                          <p className="text-sm font-bold text-ink flex items-center gap-1.5">
+                            <span>{l.parentName || 'Parent'}</span>
+                            <span className="text-ink-2 font-normal">·</span>
+                            <span className="font-mono tabular-nums text-primary">{l.parentPhone}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Quick Call & WhatsApp Buttons for Manager */}
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={`tel:${l.parentPhone}`}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-primary text-on-primary text-xs font-bold shadow-sm hover:opacity-90 transition-opacity"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">call</span>
+                          <span>Call Parent</span>
+                        </a>
+                        <a
+                          href={`https://wa.me/91${l.parentPhone}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#25D366] text-white text-xs font-bold shadow-sm hover:opacity-90 transition-opacity"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">chat</span>
+                          <span>WhatsApp</span>
+                        </a>
+                      </div>
+                    </div>
+
+                    {l.parentRemarks && (
+                      <p className="text-xs text-ink-2 italic border-t border-line/60 pt-1.5">
+                        Parent note: "{l.parentRemarks}" {l.parentActionAt ? `(${fmtDate(l.parentActionAt)})` : ''}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Manager Decision Section */}
+                  {isManagerPending ? (
+                    <div className="flex flex-col gap-2.5 pt-1 border-t border-line">
+                      {needsConfirmation ? (
+                        <>
+                          <p className="text-xs text-primary font-semibold flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-[16px]">info</span>
+                            <span>Parent approved on {fmtDate(l.parentActionAt)}. Confirm with parent and decide:</span>
+                          </p>
+
+                          <input
+                            type="text"
+                            placeholder="Manager note (optional, e.g. Confirmed on call with father)"
+                            value={managerRemarks[l._id] || ''}
+                            onChange={(e) => setManagerRemarks({ ...managerRemarks, [l._id]: e.target.value })}
+                            className="w-full px-3 py-2 rounded-xl bg-surface border border-line text-ink font-body text-xs focus:border-primary focus:outline-none"
+                          />
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              disabled={actionBusy === l._id}
+                              onClick={() => handleManagerDecision(l._id, 'approved')}
+                              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full bg-success text-white font-label text-xs font-bold shadow-sm hover:opacity-95 disabled:opacity-50 transition-opacity"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                              <span>{actionBusy === l._id ? 'Processing...' : 'Approve Leave'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={actionBusy === l._id}
+                              onClick={() => handleManagerDecision(l._id, 'denied')}
+                              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full bg-danger-soft text-on-danger-soft border border-danger/30 font-label text-xs font-bold hover:bg-danger-soft/80 disabled:opacity-50 transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">cancel</span>
+                              <span>Deny Leave</span>
+                            </button>
+                          </div>
+                        </>
+                      ) : isParentPending ? (
+                        <div className="bg-surface-2 rounded-xl p-2.5 text-xs text-ink-2 flex items-center justify-between">
+                          <span>Waiting for parent to accept first via WhatsApp / link.</span>
+                          <a href={`tel:${l.parentPhone}`} className="text-primary font-semibold hover:underline">
+                            Call to Remind
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="bg-danger-soft text-on-danger-soft rounded-xl p-2.5 text-xs font-semibold">
+                          Parent rejected this leave request on {fmtDate(l.parentActionAt)}.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Manager Decision Already Made */
+                    <footer className={`rounded-xl p-3 text-xs flex flex-col gap-1 ${
+                      isManagerApproved ? 'bg-success-soft text-on-success-soft' : 'bg-danger-soft text-on-danger-soft'
+                    }`}>
+                      <div className="flex items-center justify-between font-bold">
+                        <span className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[16px]">
+                            {isManagerApproved ? 'check_circle' : 'cancel'}
+                          </span>
+                          <span>{isManagerApproved ? 'Leave Confirmed & Approved by Manager' : 'Leave Denied by Manager'}</span>
+                        </span>
+                        {l.managerActionAt && (
+                          <span className="text-[11px] font-normal opacity-80">
+                            {fmtDate(l.managerActionAt)} · {fmtTime(l.managerActionAt)}
+                          </span>
+                        )}
+                      </div>
+                      {l.managerRemarks && (
+                        <p className="text-[11px] opacity-90">Manager remarks: "{l.managerRemarks}"</p>
+                      )}
+                    </footer>
+                  )}
+                </article>
+              );
+            })
           )}
-
-          {leaves.data?.map((l) => (
-            <article key={l._id} className="bg-surface border border-line rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-              <header className="flex items-start justify-between">
-                <div>
-                  <h2 className="font-title text-base font-bold text-ink">{l.tenant?.name}</h2>
-                  <p className="text-xs text-ink-2">
-                    Room {l.tenant?.room?.number} (Bed {l.tenant?.bed?.label}) · {l.tenant?.phone}
-                  </p>
-                </div>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                  l.parentStatus === 'approved'
-                    ? 'bg-success-soft text-on-success-soft'
-                    : l.parentStatus === 'rejected'
-                    ? 'bg-danger-soft text-on-danger-soft'
-                    : 'bg-warning-soft text-on-warning-soft'
-                }`}>
-                  {l.parentStatus === 'approved' ? 'Parent: Approved ✓' : l.parentStatus === 'rejected' ? 'Parent: Rejected ✕' : 'Parent: Pending ⏳'}
-                </span>
-              </header>
-
-              <div className="bg-surface-2 rounded-xl p-3 text-xs flex flex-col gap-1.5">
-                <div className="flex justify-between">
-                  <span className="text-ink-2">Dates:</span>
-                  <b className="text-ink tabular-nums">{fmtDate(l.startDate)} to {fmtDate(l.endDate)}</b>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-ink-2">Destination:</span>
-                  <b className="text-ink">{l.destination || 'Home'}</b>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-ink-2">Reason:</span>
-                  <b className="text-ink">{l.reason}</b>
-                </div>
-                <div className="flex justify-between border-t border-line/60 pt-1 text-[11px] text-ink-2">
-                  <span>Parent: {l.parentName} ({l.parentPhone})</span>
-                  {l.parentRemarks && <span>Remarks: "{l.parentRemarks}"</span>}
-                </div>
-              </div>
-
-              <footer className="flex items-center justify-between pt-1 border-t border-line text-xs">
-                <span className="text-ink-2">
-                  Manager status: <b>{l.managerStatus === 'acknowledged' ? 'Acknowledged ✓' : 'New'}</b>
-                </span>
-                {l.managerStatus !== 'acknowledged' && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await api(`/manager/leaves/${l._id}/acknowledge`, { method: 'PATCH' });
-                      leaves.reload();
-                    }}
-                    className="px-3 py-1 rounded-full bg-primary-soft text-primary font-semibold text-xs hover:opacity-90"
-                  >
-                    Acknowledge Pass
-                  </button>
-                )}
-              </footer>
-            </article>
-          ))}
         </div>
       )}
 

@@ -772,9 +772,10 @@ export function LeavePass() {
           <div className="bg-primary-soft/40 border border-primary-soft rounded-xl p-3 text-xs text-primary flex items-start gap-2">
             <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">verified_user</span>
             <div>
-              <p className="font-semibold">Parent Approval Rule:</p>
+              <p className="font-semibold">2-Step Leave Approval Rule:</p>
               <p className="text-[11px] opacity-90 mt-0.5">
-                This request will be sent to your parent ({parentName}: <b>{parentPhone || 'Mobile not set'}</b>) via WhatsApp. The pass is approved once they confirm.
+                1. Request will be sent to your parent ({parentName}: <b>{parentPhone || 'Mobile not set'}</b>) for approval.<br />
+                2. Once parent approves, manager will call to confirm and grant final leave approval.
               </p>
             </div>
           </div>
@@ -856,9 +857,11 @@ export function LeavePass() {
           </p>
         ) : (
           leaves.data.map((l) => {
-            const isApproved = l.parentStatus === 'approved';
-            const isRejected = l.parentStatus === 'rejected';
-            const isPending = l.parentStatus === 'pending';
+            const isParentApproved = l.parentStatus === 'approved';
+            const isParentRejected = l.parentStatus === 'rejected';
+            const isParentPending = l.parentStatus === 'pending';
+            const isManagerApproved = l.managerStatus === 'approved' || l.managerStatus === 'acknowledged';
+            const isManagerDenied = l.managerStatus === 'denied';
 
             return (
               <article key={l._id} className="bg-surface border border-line rounded-2xl p-4 shadow-sm flex flex-col gap-3">
@@ -869,32 +872,100 @@ export function LeavePass() {
                     </h3>
                     <p className="text-xs text-ink-2">Destination: <b>{l.destination || 'Home'}</b></p>
                   </div>
+
+                  {/* Main Status Badge */}
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 ${
-                    isApproved
-                      ? 'bg-success-soft text-on-success-soft'
-                      : isRejected
+                    isManagerApproved
+                      ? 'bg-success text-white'
+                      : isManagerDenied
+                      ? 'bg-danger text-white'
+                      : isParentRejected
                       ? 'bg-danger-soft text-on-danger-soft'
+                      : isParentApproved
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
                       : 'bg-warning-soft text-on-warning-soft'
                   }`}>
-                    {isApproved ? 'Parent: Approved ✓' : isRejected ? 'Parent: Rejected ✕' : 'Parent: Pending ⏳'}
+                    {isManagerApproved
+                      ? 'Leave Approved ✓'
+                      : isManagerDenied
+                      ? 'Denied by Manager ✕'
+                      : isParentRejected
+                      ? 'Parent Rejected ✕'
+                      : isParentApproved
+                      ? 'Parent Approved · Awaiting Manager 📞'
+                      : 'Parent: Pending ⏳'}
                   </span>
                 </header>
 
-                <p className="text-xs text-ink-2 bg-surface-2 p-2.5 rounded-xl">
-                  Reason: <b>"{l.reason}"</b>
-                  {l.parentRemarks && <span className="block mt-1 text-ink">Parent Remarks: "{l.parentRemarks}"</span>}
-                </p>
+                {/* 2-Step Progress Indicator */}
+                <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-surface-2 border border-line/60 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
+                      isParentApproved
+                        ? 'bg-success text-white'
+                        : isParentRejected
+                        ? 'bg-danger text-white'
+                        : 'bg-warning text-white'
+                    }`}>
+                      {isParentApproved ? '✓' : isParentRejected ? '✕' : '1'}
+                    </span>
+                    <div className="flex flex-col">
+                      <span className="font-bold text-ink text-[11px]">Parent Approval</span>
+                      <span className="text-[10px] text-ink-2">
+                        {isParentApproved ? 'Approved' : isParentRejected ? 'Rejected' : 'Pending'}
+                      </span>
+                    </div>
+                  </div>
 
-                <footer className="flex items-center justify-between pt-1 border-t border-line text-xs">
-                  <span className="text-ink-2">
-                    Manager Status: <b>{l.managerStatus === 'acknowledged' ? 'Acknowledged ✓' : 'Awaiting'}</b>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
+                      isManagerApproved
+                        ? 'bg-success text-white'
+                        : isManagerDenied
+                        ? 'bg-danger text-white'
+                        : 'bg-ink-2/30 text-ink'
+                    }`}>
+                      {isManagerApproved ? '✓' : isManagerDenied ? '✕' : '2'}
+                    </span>
+                    <div className="flex flex-col">
+                      <span className="font-bold text-ink text-[11px]">Manager Confirmation</span>
+                      <span className="text-[10px] text-ink-2">
+                        {isManagerApproved ? 'Approved' : isManagerDenied ? 'Denied' : isParentApproved ? 'Call Pending' : 'Waiting on Parent'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-xs text-ink-2 bg-surface-2 p-2.5 rounded-xl flex flex-col gap-1">
+                  <p>Reason: <b className="text-ink">"{l.reason}"</b></p>
+                  {l.parentRemarks && (
+                    <p className="text-[11px] text-ink border-t border-line/50 pt-1">
+                      Parent note: "{l.parentRemarks}" {l.parentActionAt ? `(${fmtDate(l.parentActionAt)})` : ''}
+                    </p>
+                  )}
+                  {l.managerRemarks && (
+                    <p className="text-[11px] text-ink border-t border-line/50 pt-1">
+                      Manager note: "{l.managerRemarks}" {l.managerActionAt ? `(${fmtDate(l.managerActionAt)})` : ''}
+                    </p>
+                  )}
+                </div>
+
+                <footer className="flex items-center justify-between pt-1 border-t border-line text-xs flex-wrap gap-2">
+                  <span className="text-ink-2 text-[11px]">
+                    {isManagerApproved
+                      ? '✓ Official outpass confirmed. Have a safe journey!'
+                      : isManagerDenied
+                      ? '✕ Outpass denied by manager.'
+                      : isParentApproved
+                      ? 'Parent approved! Manager will call parent to confirm shortly.'
+                      : `Approval link sent to parent: ${l.parentPhone}`}
                   </span>
 
-                  {isPending && (
+                  {isParentPending && (
                     <button
                       type="button"
                       onClick={() => setShareData({ leave: l, approvalToken: l.approvalToken })}
-                      className="px-3 py-1 rounded-full bg-primary-soft text-primary font-semibold text-xs hover:opacity-90 inline-flex items-center gap-1"
+                      className="px-3 py-1 rounded-full bg-primary-soft text-primary font-semibold text-xs hover:opacity-90 inline-flex items-center gap-1 shrink-0"
                     >
                       <span className="material-symbols-outlined text-[14px]">share</span>
                       <span>Share Link with Parent</span>

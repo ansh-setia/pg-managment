@@ -213,14 +213,26 @@ r.post('/leave-approval/:token/action', wrap(async (req, res) => {
   leave.parentRemarks = String(remarks || '').trim();
   await leave.save();
 
-  // Notify student & manager
+  // Notify student
   await sendWhatsApp(leave.tenant.phone, 'leave_parent_decision', {
     name: leave.tenant.name,
-    status: action === 'approved' ? 'Approved' : 'Rejected',
+    status: action === 'approved' ? 'Approved by Parent (Awaiting Manager confirmation)' : 'Rejected by Parent',
     remarks,
   });
 
-  res.json({ ok: true, status: leave.parentStatus });
+  // If approved by parent, notify manager so they can confirm with parent
+  if (action === 'approved') {
+    const manager = await User.findOne({ role: 'manager' });
+    if (manager?.phone) {
+      await sendWhatsApp(manager.phone, 'leave_parent_approved_alert', {
+        studentName: leave.tenant.name,
+        parentPhone: leave.parentPhone,
+        dates: `${new Date(leave.startDate).toLocaleDateString('en-IN')} to ${new Date(leave.endDate).toLocaleDateString('en-IN')}`,
+      });
+    }
+  }
+
+  res.json({ ok: true, status: leave.parentStatus, managerStatus: leave.managerStatus });
 }));
 
 export default r;
