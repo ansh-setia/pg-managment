@@ -638,6 +638,374 @@ export function BulkBlockModal({ isOpen, onClose, onSuccess, sharingDefaults = [
   );
 }
 
+export function EditRoomModal({ room, blocks = [], isOpen, onClose, onSuccess }) {
+  if (!isOpen || !room) return null;
+
+  const [roomNumber, setRoomNumber] = useState(room.number || '');
+  const [floor, setFloor] = useState(room.floor ?? 0);
+  const [blockId, setBlockId] = useState(room.blockId || (blocks[0]?.id ?? ''));
+  const [initialReading, setInitialReading] = useState(room.initialReading || 0);
+  const [beds, setBeds] = useState(
+    () => (room.beds || []).map((b) => ({
+      id: b.id,
+      label: b.label || '',
+      rent: b.rent || 7500,
+      status: b.status || 'vacant',
+      tenant: b.tenant || null,
+      notice: b.notice || null,
+      isNew: false,
+    }))
+  );
+  const [bulkRent, setBulkRent] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  // Bulk apply rent to all vacant beds
+  const handleApplyBulkRent = () => {
+    const val = Number(bulkRent);
+    if (!val || val < 0) return;
+    setBeds((prev) =>
+      prev.map((b) => (b.status === 'vacant' ? { ...b, rent: val } : b))
+    );
+  };
+
+  const handleBedChange = (idx, field, val) => {
+    setBeds((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: val };
+      return next;
+    });
+  };
+
+  const handleAddBed = () => {
+    const nextNum = beds.length + 1;
+    const defaultRent = Number(bulkRent) || (beds[0]?.rent ?? 7500);
+    setBeds((prev) => [
+      ...prev,
+      {
+        id: `temp_${Date.now()}_${Math.random()}`,
+        label: `${roomNumber || room.number}-${nextNum}`,
+        rent: defaultRent,
+        status: 'vacant',
+        tenant: null,
+        notice: null,
+        isNew: true,
+      },
+    ]);
+  };
+
+  const handleRemoveBed = (idx) => {
+    const bed = beds[idx];
+    if (bed.status !== 'vacant') {
+      setError(`Cannot remove bed "${bed.label}" because it is currently occupied.`);
+      return;
+    }
+    setBeds((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!roomNumber.trim()) {
+      setError('Room number is required');
+      return;
+    }
+    if (beds.length === 0) {
+      setError('A room must have at least 1 bed');
+      return;
+    }
+
+    setBusy(true);
+    setError('');
+
+    try {
+      const payload = {
+        number: roomNumber.trim(),
+        floor: Number(floor ?? 0),
+        blockId: blockId || undefined,
+        initialReading: Number(initialReading || 0),
+        beds: beds.map((b) => ({
+          id: b.isNew ? undefined : b.id,
+          label: String(b.label || '').trim(),
+          rent: Number(b.rent || 0),
+          isNew: b.isNew,
+        })),
+      };
+
+      await api(`/owner/rooms/${room.id}`, {
+        method: 'PUT',
+        body: payload,
+      });
+
+      onSuccess?.(`Room ${roomNumber.trim()} and its beds updated successfully ✓`);
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Failed to update room');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const totalRentPotential = beds.reduce((s, b) => s + (Number(b.rent) || 0), 0);
+  const vacantCount = beds.filter((b) => b.status === 'vacant').length;
+  const occupiedCount = beds.length - vacantCount;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+      <div
+        className="w-full max-w-2xl bg-surface rounded-3xl shadow-2xl border border-line flex flex-col max-h-[92vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-line flex items-center justify-between bg-surface-2/60 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-primary-soft text-primary flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[22px]">meeting_room</span>
+            </div>
+            <div>
+              <h2 className="font-title text-base font-bold text-ink">Edit Room {room.number}</h2>
+              <p className="font-body text-xs text-ink-2">
+                {room.blockName || 'Building Wing'} · Floor {room.floor} · {beds.length}-Sharing ({beds.length} Beds)
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-ink-2 hover:text-ink text-sm transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Scrollable Form Body */}
+        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-5 sm:p-6 flex flex-col gap-5">
+          {error && (
+            <div className="p-3.5 rounded-2xl bg-danger-soft text-on-danger-soft text-xs font-semibold flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px]">error</span>
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Section 1: Room Details */}
+          <div className="flex flex-col gap-3">
+            <span className="font-label text-xs font-bold text-primary uppercase tracking-wider">
+              1. Room Details
+            </span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <label className="flex flex-col gap-1 col-span-1">
+                <span className="font-label text-xs font-semibold text-ink-2">Room Number</span>
+                <input
+                  type="text"
+                  required
+                  value={roomNumber}
+                  onChange={(e) => setRoomNumber(e.target.value)}
+                  className="px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-bold text-sm focus:border-primary focus:outline-none"
+                  placeholder="e.g. A001"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1 col-span-1">
+                <span className="font-label text-xs font-semibold text-ink-2">Floor</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="20"
+                  value={floor}
+                  onChange={(e) => setFloor(e.target.value)}
+                  className="px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-semibold text-sm focus:border-primary focus:outline-none"
+                />
+              </label>
+
+              {blocks.length > 1 && (
+                <label className="flex flex-col gap-1 col-span-2 sm:col-span-1">
+                  <span className="font-label text-xs font-semibold text-ink-2">Block</span>
+                  <select
+                    value={blockId}
+                    onChange={(e) => setBlockId(e.target.value)}
+                    className="px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-semibold text-sm focus:border-primary focus:outline-none"
+                  >
+                    {blocks.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              <label className="flex flex-col gap-1 col-span-2 sm:col-span-1">
+                <span className="font-label text-xs font-semibold text-ink-2">Meter Reading</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={initialReading}
+                  onChange={(e) => setInitialReading(e.target.value)}
+                  className="px-3.5 py-2.5 rounded-xl bg-surface border border-line text-ink font-semibold text-sm focus:border-primary focus:outline-none"
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Section 2: Beds & Rent */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="font-label text-xs font-bold text-primary uppercase tracking-wider">
+                2. Beds & Monthly Rent ({beds.length} Total)
+              </span>
+              <button
+                type="button"
+                onClick={handleAddBed}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-primary-soft text-primary hover:opacity-90 font-label text-xs font-bold transition-opacity"
+              >
+                <span className="material-symbols-outlined text-[16px]">add</span>
+                <span>+ Add Bed</span>
+              </button>
+            </div>
+
+            {/* Quick Bulk Rent Tool */}
+            <div className="p-3 rounded-2xl bg-surface-2 border border-line flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-1.5 text-xs text-ink-2">
+                <span className="material-symbols-outlined text-[16px] text-primary">sell</span>
+                <span>Set rent for all vacant beds:</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink-2">₹</span>
+                  <input
+                    type="number"
+                    placeholder="e.g. 15000"
+                    value={bulkRent}
+                    onChange={(e) => setBulkRent(e.target.value)}
+                    className="w-28 pl-6 pr-2.5 py-1.5 rounded-xl bg-surface border border-line text-xs font-bold text-ink focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleApplyBulkRent}
+                  className="px-3 py-1.5 rounded-xl bg-primary text-on-primary font-label text-xs font-bold hover:opacity-95"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+
+            {/* Beds List */}
+            <div className="flex flex-col gap-2">
+              {beds.map((b, idx) => {
+                const isVacant = b.status === 'vacant';
+                return (
+                  <div
+                    key={b.id || idx}
+                    className="p-3 rounded-2xl bg-surface border border-line flex items-center justify-between gap-3 flex-wrap"
+                  >
+                    {/* Bed identifier & status */}
+                    <div className="flex items-center gap-2 min-w-[140px]">
+                      <span className="w-7 h-7 rounded-lg bg-surface-2 font-bold text-xs flex items-center justify-center text-ink shrink-0">
+                        {idx + 1}
+                      </span>
+                      <div className="flex flex-col">
+                        <input
+                          type="text"
+                          value={b.label}
+                          onChange={(e) => handleBedChange(idx, 'label', e.target.value)}
+                          placeholder="Bed Label"
+                          className="font-bold text-xs text-ink bg-transparent border-b border-dashed border-line focus:border-primary focus:outline-none py-0.5 max-w-[110px]"
+                        />
+                        <span
+                          className={`text-[10px] font-semibold ${
+                            isVacant
+                              ? 'text-success'
+                              : b.status === 'notice'
+                              ? 'text-warning'
+                              : 'text-primary'
+                          }`}
+                        >
+                          {isVacant
+                            ? '● Vacant'
+                            : b.status === 'notice'
+                            ? `● Notice (${b.tenant || 'Tenant'})`
+                            : `● ${b.tenant || 'Occupied'}`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Rent Input */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-ink-2">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={b.rent}
+                        onChange={(e) => handleBedChange(idx, 'rent', e.target.value)}
+                        className="w-28 px-2.5 py-1.5 rounded-xl bg-surface-2 border border-line text-xs font-bold text-ink tabular-nums focus:border-primary focus:outline-none"
+                      />
+                      <span className="text-[11px] text-ink-2">/mo</span>
+                    </div>
+
+                    {/* Bed Delete / Lock Action */}
+                    <div>
+                      {isVacant ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveBed(idx)}
+                          className="w-7 h-7 rounded-full bg-danger-soft text-on-danger-soft hover:opacity-90 flex items-center justify-center transition-opacity"
+                          title="Delete this bed"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">delete</span>
+                        </button>
+                      ) : (
+                        <span
+                          className="w-7 h-7 rounded-full bg-surface-2 text-ink-2 flex items-center justify-center cursor-not-allowed"
+                          title="Occupied bed cannot be deleted"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">lock</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Live Summary Bar */}
+          <div className="p-3.5 rounded-2xl bg-surface-2 border border-line flex items-center justify-between text-xs flex-wrap gap-2">
+            <div className="flex items-center gap-3">
+              <span className="font-bold text-ink">Capacity: {beds.length}-Sharing</span>
+              <span className="text-success font-semibold">{vacantCount} Vacant</span>
+              {occupiedCount > 0 && <span className="text-primary font-semibold">{occupiedCount} Occupied</span>}
+            </div>
+            <div className="font-bold text-ink">
+              Potential: <span className="text-primary">{inr(totalRentPotential)}</span>/mo
+            </div>
+          </div>
+
+          {/* Footer Actions */}
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-line">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={busy}
+              className="px-5 py-2.5 rounded-full border border-line text-ink font-label text-xs font-semibold hover:bg-surface-2 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={busy || !roomNumber.trim() || beds.length === 0}
+              className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-primary text-on-primary font-label text-xs font-bold shadow-sm hover:opacity-95 transition-opacity disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-[16px]">save</span>
+              <span>{busy ? 'Saving Changes...' : 'Save Room & Beds'}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function Beds() {
   const [tab, setTab] = useState('hierarchy'); // 'hierarchy' | 'grid' | 'new'
   const bedsData = useLoad(() => api('/owner/beds'));
@@ -647,6 +1015,7 @@ export function Beds() {
   const [msg, setMsg] = useState({ text: '' });
   const [busy, setBusy] = useState(false);
   const [addBlockOpen, setAddBlockOpen] = useState(false);
+  const [editingRoom, setEditingRoom] = useState(null);
 
   // New room form state
   const [newRoom, setNewRoom] = useState({
@@ -913,15 +1282,23 @@ export function Beds() {
                                     {rm.sharingType}-Sharing
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5">
                                   <span className={`text-xs font-semibold tabular-nums ${rm.vacantBeds > 0 ? 'text-success' : 'text-ink-2'}`}>
                                     {rm.vacantBeds} / {rm.totalBeds} vacant
                                   </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingRoom(rm)}
+                                    className="px-2 py-0.5 rounded-full bg-primary-soft text-primary text-[10px] font-bold hover:opacity-90 inline-flex items-center gap-0.5 transition-opacity"
+                                  >
+                                    <span className="material-symbols-outlined text-[12px]">edit</span>
+                                    <span>Edit</span>
+                                  </button>
                                   {rm.vacantBeds === rm.totalBeds && (
                                     <button
                                       type="button"
                                       onClick={() => handleDeleteRoom(rm.id, rm.number)}
-                                      className="px-2 py-0.5 rounded-full bg-danger-soft text-on-danger-soft text-[10px] font-bold"
+                                      className="px-2 py-0.5 rounded-full bg-danger-soft text-on-danger-soft text-[10px] font-bold hover:opacity-90 transition-opacity"
                                     >
                                       Delete
                                     </button>
@@ -932,15 +1309,17 @@ export function Beds() {
                               {/* Beds list */}
                               <div className="flex flex-wrap gap-1.5 pt-1">
                                 {rm.beds.map((b) => (
-                                  <div
+                                  <button
                                     key={b.id}
-                                    title={b.notice ? `Notice: ${fmtDate(b.notice.vacatingDate)} (${b.notice.reason || 'Notice'})` : ''}
-                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${
+                                    type="button"
+                                    onClick={() => setEditingRoom(rm)}
+                                    title={b.notice ? `Notice: ${fmtDate(b.notice.vacatingDate)} (${b.notice.reason || 'Notice'}) - Click to edit` : 'Click to edit room & beds'}
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all hover:scale-[1.02] cursor-pointer text-left ${
                                       b.status === 'vacant'
-                                        ? 'bg-success-soft text-on-success-soft border-success/30'
+                                        ? 'bg-success-soft text-on-success-soft border-success/30 hover:border-success'
                                         : b.status === 'notice'
-                                        ? 'bg-warning-soft text-on-warning-soft border-warning/30'
-                                        : 'bg-surface-2 text-ink border-line'
+                                        ? 'bg-warning-soft text-on-warning-soft border-warning/30 hover:border-warning'
+                                        : 'bg-surface-2 text-ink border-line hover:border-primary/50'
                                     }`}
                                   >
                                     <span className="font-bold">{b.label.split('-')[1] || b.label}</span>
@@ -951,7 +1330,8 @@ export function Beds() {
                                         ? `${b.tenant} (Notice: ${b.notice?.vacatingDate ? fmtDate(b.notice.vacatingDate) : 'Soon'})`
                                         : b.tenant}
                                     </span>
-                                  </div>
+                                    <span className="material-symbols-outlined text-[12px] opacity-50">edit</span>
+                                  </button>
                                 ))}
                               </div>
                             </div>
@@ -1145,6 +1525,17 @@ export function Beds() {
           reloadAll();
         }}
         sharingDefaults={sharingDefaults}
+      />
+
+      <EditRoomModal
+        room={editingRoom}
+        blocks={blocks}
+        isOpen={!!editingRoom}
+        onClose={() => setEditingRoom(null)}
+        onSuccess={(m) => {
+          setMsg({ text: m });
+          reloadAll();
+        }}
       />
     </div>
   );

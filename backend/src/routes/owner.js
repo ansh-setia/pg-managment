@@ -354,6 +354,149 @@ r.delete('/rooms/:id', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+r.put('/rooms/:id', wrap(async (req, res) => {
+  const { number, floor, initialReading, blockId, beds: updatedBeds } = req.body;
+  const room = await Room.findById(req.params.id);
+  if (!room) throw new HttpError(404, 'Room not found');
+
+  // Check unique room number if changing
+  const cleanNumber = String(number || '').trim();
+  if (cleanNumber && cleanNumber !== room.number) {
+    const targetBlockId = blockId || room.block;
+    const exists = await Room.findOne({ _id: { $ne: room._id }, block: targetBlockId, number: cleanNumber });
+    if (exists) throw new HttpError(409, `Room ${cleanNumber} already exists in this block`);
+    room.number = cleanNumber;
+  }
+
+  if (floor !== undefined) {
+    const fNum = Number(floor);
+    if (!isNaN(fNum)) room.floor = fNum;
+  }
+
+  if (initialReading !== undefined) {
+    const ir = Number(initialReading);
+    if (!isNaN(ir)) room.initialReading = Math.max(0, ir);
+  }
+
+  if (blockId && String(blockId) !== String(room.block)) {
+    const blk = await Block.findById(blockId);
+    if (!blk) throw new HttpError(404, 'Block not found');
+    room.block = blk._id;
+  }
+
+  // Process beds if provided
+  if (Array.isArray(updatedBeds)) {
+    const existingBeds = await Bed.find({ room: room._id });
+    const existingMap = new Map(existingBeds.map((b) => [String(b._id), b]));
+    const retainedIds = new Set();
+
+    for (let idx = 0; idx < updatedBeds.length; idx++) {
+      const bData = updatedBeds[idx];
+      const bedId = bData.id || bData._id;
+
+      if (bedId && existingMap.has(String(bedId))) {
+        // Update existing bed
+        const bed = existingMap.get(String(bedId));
+        if (bData.label !== undefined && String(bData.label).trim()) {
+          bed.label = String(bData.label).trim();
+        }
+        if (bData.rent !== undefined) {
+          const rVal = Number(bData.rent);
+          if (rVal >= 0) bed.rent = rVal;
+        }
+        await bed.save();
+        retainedIds.add(String(bed._id));
+      } else if (bData.isNew || !bedId) {
+        // Create new bed
+        const label = String(bData.label || `${room.number}-${idx + 1}`).trim();
+        const rent = Number(bData.rent) >= 0 ? Number(bData.rent) : 7500;
+        const newBed = await Bed.create({
+          room: room._id,
+          label,
+          rent,
+          status: 'vacant',
+          vacantSince: new Date(),
+        });
+        retainedIds.add(String(newBed._id));
+      }
+    }
+
+    // Delete any existing beds that were omitted in updatedBeds
+    for (const b of existingBeds) {
+      if (!retainedIds.has(String(b._id))) {
+        if (b.status !== 'vacant') {
+          throw new HttpError(400, `Cannot remove Bed ${b.label} because it is currently occupied or on notice.`);
+        }
+        await Bed.findByIdAndDelete(b._id);
+      }
+    }
+
+    const totalActiveBeds = await Bed.countDocuments({ room: room._id });
+    room.sharingType = Math.max(1, totalActiveBeds);
+  }
+
+  await room.save();
+  const freshBeds = await Bed.find({ room: room._id }).sort({ label: 1 });
+  res.json({ ok: true, room, beds: freshBeds });
+}));
+
+r.post('/rooms/:id/beds', wrap(async (req, res) => {
+  const room = await Room.findById(req.params.id);
+  if (!room) throw new HttpError(404, 'Room not found');
+
+  const existingBeds = await Bed.find({ room: room._id });
+  const count = existingBeds.length;
+  const label = String(req.body.label || `${room.number}-${count + 1}`).trim();
+  const rent = Number(req.body.rent) >= 0 ? Number(req.body.rent) : (existingBeds[0]?.rent || 7500);
+
+  const bed = await Bed.create({
+    room: room._id,
+    label,
+    rent,
+    status: 'vacant',
+    vacantSince: new Date(),
+  });
+
+  room.sharingType = count + 1;
+  await room.save();
+
+  res.status(201).json({ ok: true, bed, room });
+}));
+
+r.patch('/beds/:id', wrap(async (req, res) => {
+  const bed = await Bed.findById(req.params.id);
+  if (!bed) throw new HttpError(404, 'Bed not found');
+
+  const { rent, label } = req.body;
+  if (rent !== undefined) {
+    const rVal = Number(rent);
+    if (rVal >= 0) bed.rent = rVal;
+  }
+  if (label !== undefined && String(label).trim()) {
+    bed.label = String(label).trim();
+  }
+  await bed.save();
+  res.json({ ok: true, bed });
+}));
+
+r.delete('/beds/:id', wrap(async (req, res) => {
+  const bed = await Bed.findById(req.params.id);
+  if (!bed) throw new HttpError(404, 'Bed not found');
+  if (bed.status !== 'vacant') {
+    throw new HttpError(400, `Cannot delete Bed ${bed.label} as it is currently occupied or on notice.`);
+  }
+
+  const roomId = bed.room;
+  await Bed.findByIdAndDelete(bed._id);
+
+  if (roomId) {
+    const remaining = await Bed.countDocuments({ room: roomId });
+    await Room.findByIdAndUpdate(roomId, { sharingType: Math.max(1, remaining) });
+  }
+
+  res.json({ ok: true });
+}));
+
 r.get('/beds', wrap(async (_req, res) => {
   const beds = await Bed.find().populate({ path: 'room', populate: { path: 'block' } }).sort({ label: 1 });
   const occ = await Tenant.find({ status: { $in: ['active', 'notice'] } }, 'bed name');
