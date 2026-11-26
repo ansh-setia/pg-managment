@@ -42,12 +42,30 @@ export const Setting = mongoose.model('Setting', new Schema({
   }],
 }));
 
+export const Workspace = mongoose.model('Workspace', new Schema({
+  owner: { ...ref('User'), required: true },
+  name: { type: String, default: 'My Workspace' },
+}, { timestamps: true }));
+
+export const Property = mongoose.model('Property', new Schema({
+  name: { type: String, required: true, trim: true },
+  workspace: ref('Workspace'),
+  owner: ref('User'),
+  address: { type: String, default: '' },
+  city: { type: String, default: '' },
+  contactPhone: { type: String, default: '' },
+  status: { type: String, enum: ['active', 'archived'], default: 'active' },
+  description: { type: String, default: '' },
+}, { timestamps: true }));
+
 export const Block = mongoose.model('Block', new Schema({
+  property: ref('Property'),
   name: { type: String, required: true, trim: true },
   description: { type: String, default: '' },
 }, { timestamps: true }));
 
 const roomSchema = new Schema({
+  property: ref('Property'),
   block: ref('Block'),
   number: { type: String, required: true },
   floor: { type: Number, default: 0 },
@@ -224,4 +242,144 @@ export const Leave = mongoose.model('Leave', new Schema({
   managerStatus: { type: String, enum: ['pending', 'approved', 'denied', 'acknowledged'], default: 'pending' },
   managerActionAt: Date,
   managerRemarks: String,
+}, { timestamps: true }));
+
+export const PERMISSION_PRESETS = {
+  full: {
+    finances: {
+      viewFinancials: true,
+      recordPayments: true,
+      sendReminders: true,
+      viewPaymentHistory: true,
+      viewDeposits: false, // Owner-exclusive restricted
+      recordElectricity: true,
+    },
+    roomsAndBeds: {
+      viewOccupancy: true,
+      manageRooms: true,
+      manageBeds: true,
+      allotBeds: true,
+    },
+    tenants: {
+      viewTenants: true,
+      onboardTenants: true,
+      manageVerification: true,
+      issueNotices: true,
+      initiateCheckout: true,
+    },
+    dailyOperations: {
+      approveOutpasses: true,
+      manageMaintenance: true,
+      sendAnnouncements: true,
+    },
+  },
+  caretaker: {
+    finances: {
+      viewFinancials: false,
+      recordPayments: false,
+      sendReminders: false,
+      viewPaymentHistory: false,
+      viewDeposits: false,
+      recordElectricity: true,
+    },
+    roomsAndBeds: {
+      viewOccupancy: true,
+      manageRooms: false,
+      manageBeds: false,
+      allotBeds: false,
+    },
+    tenants: {
+      viewTenants: true,
+      onboardTenants: false,
+      manageVerification: false,
+      issueNotices: false,
+      initiateCheckout: false,
+    },
+    dailyOperations: {
+      approveOutpasses: true,
+      manageMaintenance: true,
+      sendAnnouncements: true,
+    },
+  },
+};
+
+const assignmentSchema = new Schema({
+  manager: { ...ref('User'), required: true },
+  property: { ...ref('Property'), required: true },
+  workspace: ref('Workspace'),
+  owner: { ...ref('User'), required: true },
+  permissionPreset: { type: String, enum: ['full', 'caretaker', 'custom'], default: 'full' },
+  customPermissions: {
+    finances: {
+      viewFinancials: { type: Boolean, default: true },
+      recordPayments: { type: Boolean, default: true },
+      sendReminders: { type: Boolean, default: true },
+      viewPaymentHistory: { type: Boolean, default: true },
+      viewDeposits: { type: Boolean, default: false },
+      recordElectricity: { type: Boolean, default: true },
+    },
+    roomsAndBeds: {
+      viewOccupancy: { type: Boolean, default: true },
+      manageRooms: { type: Boolean, default: true },
+      manageBeds: { type: Boolean, default: true },
+      allotBeds: { type: Boolean, default: true },
+    },
+    tenants: {
+      viewTenants: { type: Boolean, default: true },
+      onboardTenants: { type: Boolean, default: true },
+      manageVerification: { type: Boolean, default: true },
+      issueNotices: { type: Boolean, default: true },
+      initiateCheckout: { type: Boolean, default: true },
+    },
+    dailyOperations: {
+      approveOutpasses: { type: Boolean, default: true },
+      manageMaintenance: { type: Boolean, default: true },
+      sendAnnouncements: { type: Boolean, default: true },
+    },
+  },
+  isPrimary: { type: Boolean, default: false },
+  designation: { type: String, enum: ['primary', 'supporting', 'temporary'], default: 'supporting' },
+  status: { type: String, enum: ['active', 'suspended', 'expired'], default: 'active' },
+  validFrom: { type: Date, default: Date.now },
+  validUntil: Date,
+  assignedBy: ref('User'),
+  suspendedAt: Date,
+  revokedAt: Date,
+}, { timestamps: true });
+assignmentSchema.index({ manager: 1, property: 1 });
+assignmentSchema.index({ property: 1, isPrimary: 1 });
+export const ManagerAssignment = mongoose.model('ManagerAssignment', assignmentSchema);
+
+export const ManagerInvitation = mongoose.model('ManagerInvitation', new Schema({
+  workspace: ref('Workspace'),
+  owner: { ...ref('User'), required: true },
+  phone: { type: String, required: true },
+  name: { type: String, required: true },
+  email: { type: String, default: '' },
+  token: { type: String, required: true, unique: true, index: true },
+  status: { type: String, enum: ['pending', 'accepted', 'expired', 'cancelled'], default: 'pending' },
+  propertyAssignments: [{
+    property: ref('Property'),
+    isPrimary: { type: Boolean, default: false },
+    designation: { type: String, default: 'supporting' },
+    permissionPreset: { type: String, default: 'full' },
+    customPermissions: Schema.Types.Mixed,
+    validFrom: Date,
+    validUntil: Date,
+  }],
+  expiresAt: { type: Date, required: true },
+  acceptedAt: Date,
+}, { timestamps: true }));
+
+export const ActivityLog = mongoose.model('ActivityLog', new Schema({
+  workspace: ref('Workspace'),
+  property: ref('Property'),
+  performedBy: ref('User'),
+  targetUser: ref('User'),
+  actionType: { type: String, required: true },
+  entityType: { type: String, default: 'manager_assignment' },
+  entityId: Schema.Types.ObjectId,
+  description: { type: String, default: '' },
+  details: Schema.Types.Mixed,
+  timestamp: { type: Date, default: Date.now },
 }, { timestamps: true }));

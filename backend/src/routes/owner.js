@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { Block, Room, Bed, Tenant, Payment, Setting } from '../models.js';
+import { Block, Room, Bed, Tenant, Payment, Setting, Property } from '../models.js';
 import { ensureDues, getSettings } from '../billing.js';
 import { sendWhatsApp } from '../notify.js';
+import { ensureDefaultWorkspaceAndProperties } from '../workspace.js';
 import { HttpError, daysLate, daysSince, isMonth, monthStr, wrap } from '../util.js';
 
 const r = Router(); // role: malik only
@@ -95,7 +96,15 @@ r.post('/blocks', wrap(async (req, res) => {
   if (!name) throw new HttpError(400, 'Block name is required');
   const existing = await Block.findOne({ name: new RegExp(`^${name}$`, 'i') });
   if (existing) throw new HttpError(409, 'A block with this name already exists');
-  const block = await Block.create({ name, description: String(req.body.description || '').trim() });
+
+  const wsData = await ensureDefaultWorkspaceAndProperties(req.user);
+  const targetPropId = req.body.propertyId || wsData?.properties[0]?._id;
+
+  const block = await Block.create({
+    property: targetPropId,
+    name,
+    description: String(req.body.description || '').trim(),
+  });
   res.status(201).json(block);
 }));
 
@@ -177,7 +186,11 @@ r.post('/blocks/bulk', wrap(async (req, res) => {
   }
 
   // Atomic creation with rollback guarantee
+  const wsData = await ensureDefaultWorkspaceAndProperties(req.user);
+  const targetPropId = req.body.propertyId || wsData?.properties[0]?._id;
+
   const block = await Block.create({
+    property: targetPropId,
     name: blockName,
     description: String(description || '').trim(),
   });
@@ -185,6 +198,7 @@ r.post('/blocks/bulk', wrap(async (req, res) => {
   let createdRoomIds = [];
   try {
     const roomsToInsert = roomDefs.map((rd) => ({
+      property: block.property,
       block: block._id,
       number: rd.number,
       floor: rd.floor,
@@ -290,8 +304,12 @@ r.get('/hierarchy', wrap(async (_req, res) => {
     };
   });
 
+  const wsData = await ensureDefaultWorkspaceAndProperties(_req.user);
+  const properties = await Property.find({ workspace: wsData?.workspace?._id, status: 'active' }).sort({ createdAt: 1 });
+
   res.json({
-    blocks: blocks.map((blk) => ({ id: blk._id, name: blk.name, description: blk.description })),
+    properties: properties.map((p) => ({ id: p._id, name: p.name, address: p.address, city: p.city })),
+    blocks: blocks.map((blk) => ({ id: blk._id, name: blk.name, description: blk.description, propertyId: blk.property })),
     rooms: roomList,
     sharingDefaults: settings.sharingDefaults || [],
   });

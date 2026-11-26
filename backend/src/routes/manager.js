@@ -1,11 +1,95 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { Room, Bed, Tenant, User, MeterReading, Complaint, MenuDay, FoodSkip, Payment, Settlement, Leave } from '../models.js';
+import {
+  Room,
+  Bed,
+  Tenant,
+  User,
+  MeterReading,
+  Complaint,
+  MenuDay,
+  FoodSkip,
+  Payment,
+  Settlement,
+  Leave,
+  Property,
+  ManagerAssignment,
+  Workspace,
+} from '../models.js';
 import { addElectricity, getSettings, ensureDues, receiptNo, settlementNo, recordPaymentTransaction } from '../billing.js';
 import { sendWhatsApp } from '../notify.js';
+import { ensureDefaultWorkspaceAndProperties, getEffectivePermissions, hasManagerPermission } from '../workspace.js';
 import { HttpError, isDate, isMonth, monthStr, normPhone, todayStr, wrap } from '../util.js';
 
 const r = Router(); // mounted for roles: manager, malik
+
+// Helper to get all authorized property IDs for the current user
+export async function getAuthorizedPropertyIds(user) {
+  if (user.role === 'malik') {
+    const wsData = await ensureDefaultWorkspaceAndProperties(user);
+    const props = await Property.find({ workspace: wsData.workspace._id, status: 'active' });
+    return props.map((p) => p._id);
+  }
+  const assignments = await ManagerAssignment.find({
+    manager: user._id,
+    status: 'active',
+  });
+  return assignments.map((a) => a.property);
+}
+
+// -----------------------------------------------------------------------------
+// GET /api/manager/properties - Manager's assigned properties with permissions
+// -----------------------------------------------------------------------------
+r.get('/properties', wrap(async (req, res) => {
+  if (req.user.role === 'malik') {
+    const wsData = await ensureDefaultWorkspaceAndProperties(req.user);
+    const props = await Property.find({ workspace: wsData.workspace._id, status: 'active' });
+    return res.json({
+      properties: props.map((p) => ({
+        id: p._id,
+        name: p.name,
+        address: p.address,
+        city: p.city,
+        isPrimary: true,
+        designation: 'primary',
+        permissionPreset: 'full',
+        permissions: getEffectivePermissions({ permissionPreset: 'full' }),
+      })),
+      isOwner: true,
+    });
+  }
+
+  const now = new Date();
+  const assignments = await ManagerAssignment.find({
+    manager: req.user._id,
+    status: 'active',
+  }).populate('property', 'name address city contactPhone status');
+
+  const validAssignments = [];
+  for (const ass of assignments) {
+    if (!ass.property || ass.property.status !== 'active') continue;
+    if (ass.validUntil && ass.validUntil < now) {
+      ass.status = 'expired';
+      await ass.save();
+      continue;
+    }
+    validAssignments.push({
+      id: ass.property._id,
+      name: ass.property.name,
+      address: ass.property.address,
+      city: ass.property.city,
+      isPrimary: ass.isPrimary,
+      designation: ass.designation,
+      permissionPreset: ass.permissionPreset,
+      permissions: getEffectivePermissions(ass),
+    });
+  }
+
+  res.json({
+    properties: validAssignments,
+    isOwner: false,
+  });
+}));
 
 const monthParam = (q) => {
   const m = q || monthStr();

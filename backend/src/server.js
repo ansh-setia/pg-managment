@@ -16,6 +16,7 @@ import publicRoutes from './routes/public.js';
 import tenantRoutes from './routes/tenant.js';
 import managerRoutes from './routes/manager.js';
 import ownerRoutes from './routes/owner.js';
+import managersRoutes from './routes/managers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -47,6 +48,7 @@ app.get('/api/files/:name', requireAuth, (req, res) => {
 app.use('/api/tenant', requireAuth, requireRole('tenant'), tenantRoutes);
 app.use('/api/manager', requireAuth, requireRole('manager', 'malik'), managerRoutes);
 app.use('/api/owner', requireAuth, requireRole('malik'), ownerRoutes);
+app.use('/api/owner', requireAuth, requireRole('malik'), managersRoutes);
 
 if (fs.existsSync(distDir)) {
   app.use(express.static(distDir));
